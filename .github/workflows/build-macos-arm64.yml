@@ -25,17 +25,20 @@ jobs:
           pip install -r requirements.txt pyinstaller
 
       - name: Build app
-        run: pyinstaller main.spec --noconfirm
+        run: pyinstaller --noconfirm --clean main.spec
 
       - name: Verify arm64
         run: file dist/*.app/Contents/MacOS/*
 
       - name: Make DMG
         run: |
-          APP=$(ls -d dist/*.app | head -1)
-          hdiutil create -volname "SmartSurveillanceAI" -srcfolder "$APP" -ov -format UDZO SmartSurveillanceAI-arm64.dmg
+          bash build_dmg.sh || {
+            echo "Styled DMG failed, retrying without Finder styling"
+            sed -i '' 's|--hide-extension "${APP_NAME}.app"|--hide-extension "${APP_NAME}.app" --skip-jenkins|' build_dmg.sh
+            bash build_dmg.sh
+          }
 
       - uses: actions/upload-artifact@v4
         with:
           name: SmartSurveillanceAI-macOS-arm64
-          path: scripts/SmartSurveillanceAI-arm64.dmg
+          path: scripts/dist/SmartSurveillanceAI-arm64.dmg
