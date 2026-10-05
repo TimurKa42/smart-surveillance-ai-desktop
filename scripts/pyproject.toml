@@ -1,0 +1,15 @@
+# © 2026 Тимур Каленик (Timur Kalenik Corporation) — timurkalenik950@gmail.com
+# Метадані проєкту. Автор: Тимур Каленик. Усі права захищено (див. LICENSE).
+
+[project]
+name = "smart-surveillance-ai"
+version = "1.0"
+description = "Smart Surveillance AI — пошук людини/об'єкта на відео за текстовим описом (проєкт для МАН)"
+readme = "README.md"
+authors = [{ name = "Тимур Каленик", email = "timurkalenik950@gmail.com" }]
+maintainers = [{ name = "Тимур Каленик", email = "timurkalenik950@gmail.com" }]
+license = { file = "LICENSE" }
+classifiers = ["License :: Other/Proprietary License"]
+
+[tool.setuptools]
+py-modules = []

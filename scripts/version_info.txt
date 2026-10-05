@@ -1,0 +1,34 @@
+# UTF-8
+# © 2026 Тимур Каленик (Timur Kalenik Corporation) — timurkalenik950@gmail.com
+# Метадані, що показуються у властивостях SmartSurveillanceAI.exe (Windows).
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(1, 0, 0, 0),
+    prodvers=(1, 0, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        '040904B0',
+        [
+          StringStruct('CompanyName', 'Timur Kalenik Corporation'),
+          StringStruct('FileDescription', 'Smart Surveillance AI'),
+          StringStruct('FileVersion', '1.0.0.0'),
+          StringStruct('InternalName', 'SmartSurveillanceAI'),
+          StringStruct('LegalCopyright', '(c) 2026 Timur Kalenik (timurkalenik950@gmail.com). All rights reserved.'),
+          StringStruct('OriginalFilename', 'SmartSurveillanceAI.exe'),
+          StringStruct('ProductName', 'Smart Surveillance AI'),
+          StringStruct('ProductVersion', '1.0.0.0'),
+          StringStruct('Comments', 'Author: Timur Kalenik. Project for MAN. See LICENSE.')
+        ]
+      )
+    ]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)

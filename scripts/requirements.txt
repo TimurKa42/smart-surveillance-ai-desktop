@@ -1,0 +1,25 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# Smart Surveillance AI
+# © 2026 Тимур Каленик (Timur Kalenik Corporation) <timurkalenik950@gmail.com>
+# Автор: Тимур Каленик. Усі права захищено.
+#
+# Проєкт створено для конкурсу МАН. Вихідний код відкрито для ознайомлення
+# та оцінювання журі. Копіювання, поширення, зміна та використання коду
+# (повністю або частково) без письмової згоди автора та без зазначення
+# авторства заборонені. Повні умови — у файлі LICENSE.
+# =============================================================================
+
+customtkinter
+opencv-python
+pillow
+requests
+fpdf2
+tkinterdnd2
+pytest
+av
+plyer
+winotify; sys_platform == "win32"
+pyobjc-framework-UserNotifications; sys_platform == "darwin"
+
+# © 2026 Тимур Каленик (Timur Kalenik Corporation) — timurkalenik950@gmail.com
