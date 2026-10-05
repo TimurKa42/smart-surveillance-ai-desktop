@@ -30,6 +30,11 @@ jobs:
       - name: Verify arm64
         run: file dist/*.app/Contents/MacOS/*
 
+      - name: Ad-hoc codesign
+        run: |
+          codesign --force --deep --sign - "dist/Smart Surveillance AI.app"
+          codesign --verify --deep --strict --verbose=2 "dist/Smart Surveillance AI.app"
+
       - name: Make DMG
         run: |
           bash build_dmg.sh || {
