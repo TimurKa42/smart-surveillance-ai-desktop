@@ -44,7 +44,7 @@ TEXTS = {
         "clear_all": "Очистити все",
 
         "search_prompt_label": "Кого/що шукати на відео:",
-        "word_count": "{count}/{max}",
+        "char_count": "Символів: {count}/{max}",
 
         "start_analysis": "Почати аналіз",
         "stop_analysis": "Зупинити аналіз",
@@ -104,7 +104,9 @@ TEXTS = {
         "nothing_found_photo": "Нічого не знайдено 🙁",
 
         "status_choose_video_first": "Спочатку обери відео",
-        "status_choose_model": "Обери тип аналізу праворуч (Швидкий або Детально)",
+        "status_choose_model": "Оберіть тип аналізу праворуч",
+        "status_choose_api_tier": "Не обрано тип API-ключа. Будь ласка, оберіть його в меню.",
+        "api_tier_required_hint": "Обов'язково оберіть тип ключа",
         "status_write_query": "Напиши, кого або що шукати",
         "status_cutting_frames": "Нарізаю відео на кадри...",
         "status_frames_cut": "Кадрів нарізано: {count}. Питаю Gemini...",
@@ -146,6 +148,15 @@ TEXTS = {
         "api_tier_paid": "Платний",
 
         "dialog_yes": "Так",
+        "dialog_understood": "Зрозуміло",
+        "back_button": "← Назад",
+        "menu_about_button": "Про застосунок",
+        "menu_exit_button": "Вихід",
+        "exit_title": "Вихід",
+        "exit_confirm": "Закрити програму?",
+        "exit_confirm_running": "Аналіз ще триває. Закрити програму? Незавершений аналіз буде скасовано.",
+        "clear_all_title": "Очистити все?",
+        "clear_all_confirm": "Буде скинуто обране відео, запит і поточний звіт. Історія кадрів не видаляється.",
         "dialog_no": "Ні",
 
         "change_api_key_button": "Змінити ключ",
@@ -208,9 +219,24 @@ TEXTS = {
         "status_error_server": "Тимчасова проблема на боці Gemini. Спробуй пізніше",
         "status_error_blocked": "Gemini відмовився аналізувати ці кадри (спрацював фільтр безпеки)",
 
-        "export_pdf_button": "Експорт у PDF",
-        "export_full_report_button": "Зберегти весь звіт як PDF",
+        "export_pdf_button": "Один кадр (PDF)",
+        "export_full_report_button": "Повний звіт (PDF)",
+        "export_hint": "«Один кадр» зберігає лише відкритий знімок. «Повний звіт» — усі знайдені моменти в одному файлі.",
         "export_pdf_dialog_title": "Зберегти PDF",
+
+        # --- Текст усередині самого PDF-звіту (використовує pdf_export.py) ---
+        "pdf_heading_frame": "Smart Surveillance - звіт по кадру",
+        "pdf_heading_report": "Smart Surveillance - звіт ({i}/{n})",
+        "pdf_time": "Час у відео: {value}",
+        "pdf_moment": "Момент №: {value}",
+        "pdf_video": "Відео: {value}",
+        "pdf_video_path": "Шлях до відео: {value}",
+        "pdf_created": "Звіт створено: {value}",
+        "pdf_image_failed": "[не вдалось завантажити зображення]",
+        "pdf_image_missing": "[зображення відсутнє]",
+        "pdf_description": "Опис (Gemini):",
+
+        "photo_open_error": "Не вдалось відкрити скріншот:\n{error}",
         "export_pdf_success": "PDF збережено: {path}",
         "export_pdf_error": "Не вдалось зберегти PDF: {error}",
 
@@ -256,7 +282,7 @@ TEXTS = {
         "clear_all": "Clear all",
 
         "search_prompt_label": "Who/what to look for in the video:",
-        "word_count": "{count}/{max}",
+        "char_count": "Characters: {count}/{max}",
 
         "start_analysis": "Start analysis",
         "stop_analysis": "Stop analysis",
@@ -317,7 +343,9 @@ TEXTS = {
         "nothing_found_photo": "Nothing found 🙁",
 
         "status_choose_video_first": "Please choose a video first",
-        "status_choose_model": "Choose an analysis type on the right (Fast or Detailed)",
+        "status_choose_model": "Choose the analysis type on the right",
+        "status_choose_api_tier": "API key type is not selected. Please choose it in the menu.",
+        "api_tier_required_hint": "Please choose your key type",
         "status_write_query": "Write who or what to look for",
         "status_cutting_frames": "Cutting the video into frames...",
         "status_frames_cut": "Frames cut: {count}. Asking Gemini...",
@@ -359,6 +387,15 @@ TEXTS = {
         "api_tier_paid": "Paid",
 
         "dialog_yes": "Yes",
+        "dialog_understood": "Understood",
+        "back_button": "← Back",
+        "menu_about_button": "About the app",
+        "menu_exit_button": "Exit",
+        "exit_title": "Exit",
+        "exit_confirm": "Close the app?",
+        "exit_confirm_running": "Analysis is still running. Close the app? The unfinished analysis will be cancelled.",
+        "clear_all_title": "Clear everything?",
+        "clear_all_confirm": "The selected video, query and current report will be reset. Frame history is not deleted.",
         "dialog_no": "No",
 
         "change_api_key_button": "Change key",
@@ -421,9 +458,24 @@ TEXTS = {
         "status_error_server": "Temporary issue on Gemini's side. Try again later",
         "status_error_blocked": "Gemini refused to analyze these frames (safety filter triggered)",
 
-        "export_pdf_button": "Export to PDF",
-        "export_full_report_button": "Save whole report as PDF",
+        "export_pdf_button": "Single frame (PDF)",
+        "export_full_report_button": "Full report (PDF)",
+        "export_hint": "“Single frame” saves only the open screenshot. “Full report” saves all found moments in one file.",
         "export_pdf_dialog_title": "Save PDF",
+
+        # --- Text inside the PDF report itself (used by pdf_export.py) ---
+        "pdf_heading_frame": "Smart Surveillance - frame report",
+        "pdf_heading_report": "Smart Surveillance - report ({i}/{n})",
+        "pdf_time": "Video time: {value}",
+        "pdf_moment": "Moment #: {value}",
+        "pdf_video": "Video: {value}",
+        "pdf_video_path": "Video path: {value}",
+        "pdf_created": "Report created: {value}",
+        "pdf_image_failed": "[failed to load image]",
+        "pdf_image_missing": "[image not available]",
+        "pdf_description": "Description (Gemini):",
+
+        "photo_open_error": "Couldn't open the screenshot:\n{error}",
         "export_pdf_success": "PDF saved: {path}",
         "export_pdf_error": "Couldn't save PDF: {error}",
 
@@ -459,7 +511,7 @@ TEXTS = {
         "about_tip_1": "Before the first analysis, choose your API key type in the Menu: free or paid.",
         "about_tip_2": "All found frames are kept under \u201cMenu \u2192 View history\u201d.",
         "about_tip_3": "The maximum video length is 70 minutes.",
-        "about_credit": "Built as a MAN (Minor Academy of Sciences) competition entry",
+        "about_credit": "Timur Kalenik Corporation, 2026",
     },
 }
 
