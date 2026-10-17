@@ -42,6 +42,8 @@ from datetime import datetime
 from fpdf import FPDF
 from PIL import Image
 
+from localization import Localization
+
 # ---------------------------------------------------------------------
 # Кирилиця: вбудовані шрифти fpdf (Helvetica і т.д.) не мають
 # кириличних гліфів - український/англійський текст з кирилицею просто
@@ -77,6 +79,16 @@ def _find_cyrillic_font():
                 return regular_path, bold_path
             return regular_path, regular_path
     return None, None
+
+
+# ---------------------------------------------------------------------
+# Локалізація PDF: усі рядки лежать у localization.py (ключі "pdf_*"),
+# тут лише беремо перекладач для потрібної мови. localization.py - чисті
+# дані без UI-залежностей, тож модуль лишається придатним для тестів.
+# Невідомий код мови Localization сам замінює на українську.
+# ---------------------------------------------------------------------
+def _translator(lang):
+    return Localization(lang).t
 
 
 PAGE_W = 210.0  # A4, мм
@@ -124,11 +136,14 @@ def _make_pdf():
 
 def _render_frame_page(pdf, font_name, time_str, description, image_path,
                         video_name="", video_path="", frame_index=None,
-                        heading="Smart Surveillance - звіт по кадру"):
+                        heading=None, lang="ua"):
     """Малює ОДНУ сторінку звіту (заголовок + метадані + фото + опис)
     на вже доданій сторінці pdf. Спільна для export_frame_to_pdf() і
     export_report_to_pdf(), щоб не дублювати верстку двічі."""
     content_width = PAGE_W - 2 * MARGIN
+    t = _translator(lang)
+    if heading is None:
+        heading = t("pdf_heading_frame")
 
     # --- Заголовок ---
     pdf.set_font(font_name, "B", 16)
@@ -141,14 +156,14 @@ def _render_frame_page(pdf, font_name, time_str, description, image_path,
 
     # --- Метадані (час, кадр, відео, дата створення звіту) ---
     pdf.set_font(font_name, "", 11)
-    meta_lines = [f"Час у відео: {time_str}"]
+    meta_lines = [t("pdf_time", value=time_str)]
     if frame_index is not None:
-        meta_lines.append(f"Момент №: {frame_index}")
+        meta_lines.append(t("pdf_moment", value=frame_index))
     if video_name:
-        meta_lines.append(f"Відео: {video_name}")
+        meta_lines.append(t("pdf_video", value=video_name))
     if video_path:
-        meta_lines.append(f"Шлях до відео: {video_path}")
-    meta_lines.append(f"Звіт створено: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        meta_lines.append(t("pdf_video_path", value=video_path))
+    meta_lines.append(t("pdf_created", value=datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
 
     for line in meta_lines:
         pdf.cell(content_width, 6, line, new_x="LMARGIN", new_y="NEXT")
@@ -174,14 +189,14 @@ def _render_frame_page(pdf, font_name, time_str, description, image_path,
             pdf.set_y(pdf.get_y() + draw_h + 8)
         except Exception:
             pdf.set_font(font_name, "", 10)
-            pdf.cell(content_width, 10, "[не вдалось завантажити зображення]", new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(content_width, 10, t("pdf_image_failed"), new_x="LMARGIN", new_y="NEXT")
     else:
         pdf.set_font(font_name, "", 10)
-        pdf.cell(content_width, 10, "[зображення відсутнє]", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(content_width, 10, t("pdf_image_missing"), new_x="LMARGIN", new_y="NEXT")
 
     # --- Опис від ШІ ---
     pdf.set_font(font_name, "B", 12)
-    pdf.cell(content_width, 7, "Опис (Gemini):", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(content_width, 7, t("pdf_description"), new_x="LMARGIN", new_y="NEXT")
 
     pdf.set_font(font_name, "", 11)
     description = description or "-"
@@ -191,7 +206,8 @@ def _render_frame_page(pdf, font_name, time_str, description, image_path,
 
 
 def export_frame_to_pdf(output_path, image_path, time_str, description,
-                         video_name="", video_path="", frame_index=None):
+                         video_name="", video_path="", frame_index=None,
+                         lang="ua"):
     """
     Створює один PDF-файл зі скріном ОДНОГО кадру + метаданими.
 
@@ -202,16 +218,18 @@ def export_frame_to_pdf(output_path, image_path, time_str, description,
     video_name    - назва вихідного відеофайлу (опційно)
     video_path    - повний шлях до вихідного відеофайлу (опційно)
     frame_index   - порядковий номер моменту в списку знахідок (опційно, 1-based)
+    lang          - мова підписів у PDF: "ua" або "en" (self.loc.language)
     """
     pdf, font_name = _make_pdf()
     pdf.add_page()
     _render_frame_page(pdf, font_name, time_str, description, image_path,
-                        video_name, video_path, frame_index)
+                        video_name, video_path, frame_index, lang=lang)
     pdf.output(output_path)
     return output_path
 
 
-def export_report_to_pdf(output_path, results, video_name="", video_path=""):
+def export_report_to_pdf(output_path, results, video_name="", video_path="",
+                         lang="ua"):
     """
     Створює ОДИН PDF з УСІМА знайденими моментами - по сторінці на
     кожен, у тому ж порядку, в якому вони показані у звіті (тобто
@@ -234,7 +252,8 @@ def export_report_to_pdf(output_path, results, video_name="", video_path=""):
             video_name=video_name,
             video_path=video_path,
             frame_index=i,
-            heading=f"Smart Surveillance - звіт ({i}/{len(results)})",
+            heading=_translator(lang)("pdf_heading_report", i=i, n=len(results)),
+            lang=lang,
         )
 
     pdf.output(output_path)
