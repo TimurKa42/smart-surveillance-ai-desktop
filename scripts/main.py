@@ -182,7 +182,15 @@ PROGRESS_HOLD_AT_100_MS = 3000
 # однаково і на світлій, і на темній темі.
 PROGRESS_BAR_COLOR = "#33C761"
 
-MAX_WORDS_IN_PROMPT = 200
+# Жорсткий ліміт довжини запиту - у СИМВОЛАХ (а не словах). Поле вводу
+# саме не пускає далі цього числа (див. _on_prompt_modified).
+MAX_PROMPT_CHARS = 200
+
+# Єдиний стиль рядка звіту (час + текст): однакові шрифти, час - в окремій
+# колонці фіксованої ширини ліворуч, текст - праворуч, все по лівому краю.
+# Використовується і в списку моментів, і під фото, і в повноекранному перегляді.
+REPORT_TIME_COL_WIDTH = 66
+REPORT_ROW_HOVER_COLOR = "#144870"
 SCREENSHOTS_FOLDER = os.path.join(app_paths.user_data_dir(), "screenshots")  # сюди зберігаємо знайдені скріншоти
 
 # ---------- Іконка вікон (Windows) ----------
@@ -371,21 +379,6 @@ API_TIER_OPTIONS = [
 DEFAULT_API_TIER = None   # нічого не обрано, доки користувач не вибере сам
 VALID_API_TIERS = {key for key, _ in API_TIER_OPTIONS}   # {"free", "paid"}
 
-# Тексти, які додані цією зміною. localization.py мені не показували,
-# тому вони живуть тут і підмішуються в self.loc.t() (див.
-# App._install_extra_strings). Якщо додасте ці ключі в localization.py -
-# цей словник можна просто видалити, а виклик _install_extra_strings() теж.
-EXTRA_STRINGS = {
-    "ua": {
-        "status_choose_api_tier": "Не обрано тип API-ключа. Будь ласка, оберіть його в меню.",
-        "api_tier_required_hint": "Обов'язково оберіть тип ключа",
-    },
-    "en": {
-        "status_choose_api_tier": "API key type is not selected. Please choose it in the menu.",
-        "api_tier_required_hint": "Please choose your key type",
-    },
-}
-
 RESIZE_DEBOUNCE_MS = 60             # затримка перед перерахунком розміру фото
 LIGHTBOX_PADDING = 40               # відступ навколо фото в повноекранному режимі
 
@@ -465,7 +458,6 @@ class App(*_APP_BASE_CLASSES):
         if self.settings["api_tier"] not in VALID_API_TIERS:
             self.settings["api_tier"] = None
         self.loc = Localization(self.settings["language"])
-        self._install_extra_strings()
         ctk.set_appearance_mode(THEME_MODES.get(self.settings["theme"], "System"))
         ctk.set_default_color_theme("blue")
 
@@ -537,7 +529,8 @@ class App(*_APP_BASE_CLASSES):
         # оновити текст, якщо меню зараз відкрите.
         self._menu_dialog = None
         self._menu_title_label = None
-        self._menu_info_btn = None
+        self._menu_about_btn = None
+        self._menu_exit_btn = None
         self._menu_theme_label = None
         self._menu_lang_label = None
         self._menu_history_btn = None
@@ -605,7 +598,8 @@ class App(*_APP_BASE_CLASSES):
         self.lightbox_canvas = None    # канвас з фото всередині підкладки
         self.lightbox_photo = None     # посилання на поточну PhotoImage (щоб її не видалив GC)
         self.lightbox_image_item = None  # id картинки на канвасі
-        self.lightbox_caption_label = None  # підпис (час + опис) у верхній панелі лайтбоксу
+        self.lightbox_caption_label = None  # текст підпису (опис) у верхній панелі лайтбоксу
+        self.lightbox_time_label = None     # час у підписі лайтбоксу
         self._suspend_watchdog = None   # сторож простою системи (сон) - див. keep_awake.py
         self.zoom_index = 0            # індекс поточного зуму в ZOOM_LEVELS
         self.pan_x = 0                 # зміщення фото по X (перетягування мишкою)
@@ -700,7 +694,13 @@ class App(*_APP_BASE_CLASSES):
             self._open_api_key_dialog(is_first_setup=True)
 
     def _build_interface(self):
-        # ---------- Верхня панель: лише кнопка "Меню" праворуч ----------
+        # Єдині шрифти для рядків звіту (час - жирний, текст - звичайний).
+        self.font_report_time = ctk.CTkFont(size=13, weight="bold")
+        self.font_report_text = ctk.CTkFont(size=13)
+        self.font_report_time_big = ctk.CTkFont(size=16, weight="bold")
+        self.font_report_text_big = ctk.CTkFont(size=16)
+
+        # ---------- Верхня панель: лише кнопка "Меню" ліворуч ----------
         # Тема, мова, зміна API-ключа і перегляд історії кадрів раніше
         # висіли тут окремими рядками - тепер усе це заховано за однією
         # кнопкою "Меню" (як у мобільній версії), а верх вікна лишається
@@ -717,7 +717,7 @@ class App(*_APP_BASE_CLASSES):
             text_color="white",
             command=self._open_menu,
         )
-        self.menu_button.pack(side="right")
+        self.menu_button.pack(side="left")
 
         # ---------- Вибір відео + скидання ----------
         top_frame = ctk.CTkFrame(self)
@@ -731,16 +731,6 @@ class App(*_APP_BASE_CLASSES):
         self.file_label = ctk.CTkLabel(top_frame, text=self.loc.t("no_file_selected"))
         self.file_label.pack(side="left", padx=10)
 
-        self.clear_button = ctk.CTkButton(
-            top_frame,
-            text=self.loc.t("clear_all"),
-            fg_color="transparent",
-            border_width=1,
-            text_color=("gray10", "gray90"),
-            command=self.reset_all,
-        )
-        self.clear_button.pack(side="right")
-
         # ---------- Поле для текстового запиту ----------
         prompt_header = ctk.CTkFrame(self, fg_color="transparent")
         prompt_header.pack(fill="x", padx=15, pady=(10, 0))
@@ -749,13 +739,16 @@ class App(*_APP_BASE_CLASSES):
         self.search_prompt_label_widget.pack(side="left")
 
         self.word_count_label = ctk.CTkLabel(
-            prompt_header, text=self.loc.t("word_count", count=0, max=MAX_WORDS_IN_PROMPT), text_color=STATUS_COLOR_NEUTRAL
+            prompt_header, text=self.loc.t("char_count", count=0, max=MAX_PROMPT_CHARS), text_color=STATUS_COLOR_NEUTRAL
         )
         self.word_count_label.pack(side="right")
 
         self.prompt_box = ctk.CTkTextbox(self, height=80)
         self.prompt_box.pack(fill="x", padx=15, pady=5)
-        self.prompt_box.bind("<KeyRelease>", self.update_word_count)
+        self.prompt_box.bind("<KeyRelease>", self.update_char_count)
+        # <<Modified>> спрацьовує на ЛЮБУ зміну тексту (друк, вставка, drag-and-drop) -
+        # саме тут обрізаємо все, що довше за MAX_PROMPT_CHARS.
+        self.prompt_box._textbox.bind("<<Modified>>", self._on_prompt_modified, add="+")
         self._bind_clipboard_shortcuts(self.prompt_box)
 
         # ---------- Кнопка відправки + кнопка зупинки аналізу ----------
@@ -852,8 +845,25 @@ class App(*_APP_BASE_CLASSES):
         )
 
         # ---------- Звіт: зліва список знайдених моментів, справа фото ----------
+        # "Очистити все" - небезпечна дія, тому внизу вікна, окремо від основних
+        # кнопок. Пакується ПЕРШИМ (side=bottom), щоб звіт займав решту місця.
+        bottom_bar = ctk.CTkFrame(self, fg_color="transparent")
+        bottom_bar.pack(side="bottom", fill="x", padx=15, pady=(0, 12))
+
+        self.clear_button = ctk.CTkButton(
+            bottom_bar,
+            text=self.loc.t("clear_all"),
+            fg_color="transparent",
+            border_width=1,
+            border_color=DANGER_COLOR,
+            text_color=STATUS_COLOR_ERROR,
+            hover_color=("gray85", "gray20"),
+            command=self._confirm_reset_all,
+        )
+        self.clear_button.pack(side="right")
+
         results_frame = ctk.CTkFrame(self)
-        results_frame.pack(fill="both", expand=True, padx=15, pady=(5, 15))
+        results_frame.pack(fill="both", expand=True, padx=15, pady=(5, 8))
 
         self.report_list = ctk.CTkScrollableFrame(
             results_frame, width=280, label_text=self.loc.t("report_label")
@@ -863,19 +873,33 @@ class App(*_APP_BASE_CLASSES):
         right_panel = ctk.CTkFrame(results_frame, fg_color="transparent")
         right_panel.pack(side="left", fill="both", expand=True, pady=5)
 
-        self.description_label = ctk.CTkLabel(
-            right_panel, text="", wraplength=520, justify="left"
+        # Підпис моменту: час (жирний) у колонці фіксованої ширини + текст праворуч -
+        # той самий стиль, що й у списку зліва.
+        self.caption_frame = ctk.CTkFrame(right_panel, fg_color="transparent")
+        self.caption_frame.pack(pady=(0, 5), anchor="w", fill="x")
+        self.caption_frame.grid_columnconfigure(1, weight=1)
+
+        self.caption_time_label = ctk.CTkLabel(
+            self.caption_frame, text="", width=REPORT_TIME_COL_WIDTH,
+            font=self.font_report_time, anchor="w", justify="left",
         )
-        self.description_label.pack(pady=(0, 5), anchor="w")
+        self.caption_time_label.grid(row=0, column=0, sticky="nw", padx=(0, 8))
+        self.caption_time_label.grid_remove()
+
+        self.description_label = ctk.CTkLabel(
+            self.caption_frame, text="", wraplength=470, justify="left",
+            anchor="w", font=self.font_report_text,
+        )
+        self.description_label.grid(row=0, column=1, sticky="nw")
 
         # ---------- Кнопки експорту в PDF (неактивні, поки нема звіту) ----------
         export_row = ctk.CTkFrame(right_panel, fg_color="transparent")
-        export_row.pack(fill="x", pady=(0, 8), anchor="w")
+        export_row.pack(fill="x", pady=(0, 2), anchor="w")
 
         self.export_pdf_button = ctk.CTkButton(
             export_row,
             text=self.loc.t("export_pdf_button"),
-            width=170,
+            width=180,
             state="disabled",
             command=self.export_current_pdf,
         )
@@ -884,7 +908,7 @@ class App(*_APP_BASE_CLASSES):
         self.export_full_report_button = ctk.CTkButton(
             export_row,
             text=self.loc.t("export_full_report_button"),
-            width=200,
+            width=180,
             fg_color="transparent",
             border_width=1,
             text_color=("gray10", "gray90"),
@@ -892,6 +916,13 @@ class App(*_APP_BASE_CLASSES):
             command=self.export_full_report_pdf,
         )
         self.export_full_report_button.pack(side="left", padx=(8, 0))
+
+        self.export_hint_label = ctk.CTkLabel(
+            right_panel, text=self.loc.t("export_hint"), wraplength=470,
+            justify="left", anchor="w", text_color=STATUS_COLOR_NEUTRAL,
+            font=ctk.CTkFont(size=11),
+        )
+        self.export_hint_label.pack(fill="x", pady=(0, 8))
 
         # Контейнер під фото - саме ЙОГО розмір ми відстежуємо, щоб
         # знати, скільки місця реально є під картинку прямо зараз.
@@ -1028,6 +1059,106 @@ class App(*_APP_BASE_CLASSES):
 
             widget.bind("<Control-KeyPress>", on_ctrl_keypress, add="+")
 
+    # ---------- Модальні діалоги: ЄДИНА точка створення й центрування ----------
+    def _window_scaling(self, window):
+        """Масштаб DPI для вікна (на Windows з 125%/150% != 1.0)."""
+        try:
+            return ctk.ScalingTracker.get_window_scaling(window)
+        except Exception:  # noqa: BLE001
+            return 1.0
+
+    def _center_position(self, width_px, height_px):
+        """Лівий верхній кут (x, y) для вікна width_px x height_px (у
+        ФІЗИЧНИХ пікселях) так, щоб воно стояло по центру головного вікна.
+        Якщо головне згорнуте - центруємо по екрану. Не виходимо за екран."""
+        self.update_idletasks()
+        screen_w, screen_h = self.winfo_screenwidth(), self.winfo_screenheight()
+        try:
+            minimized = self.state() == "iconic"
+        except Exception:  # noqa: BLE001
+            minimized = False
+        if minimized or self.winfo_width() <= 1:
+            area_x, area_y, area_w, area_h = 0, 0, screen_w, screen_h
+        else:
+            area_x, area_y = self.winfo_rootx(), self.winfo_rooty()
+            area_w, area_h = self.winfo_width(), self.winfo_height()
+        x = area_x + (area_w - width_px) // 2
+        y = area_y + (area_h - height_px) // 2
+        x = max(0, min(x, screen_w - width_px))
+        y = max(0, min(y, screen_h - height_px - 40))  # 40 - запас під панель задач/док
+        return x, y
+
+    def _centered_geometry(self, dialog, width, height):
+        """Рядок geometry \"WxH+X+Y\" (width/height - логічні, як в
+        CTk .geometry) для центрування по головному вікну."""
+        scale = self._window_scaling(dialog)
+        x, y = self._center_position(int(width * scale), int(height * scale))
+        return f"{width}x{height}+{x}+{y}"
+
+    def _center_dialog_to_content(self, dialog):
+        """Центрує вже наповнений діалог (розмір - за вмістом)."""
+        dialog.update_idletasks()
+        x, y = self._center_position(dialog.winfo_reqwidth(), dialog.winfo_reqheight())
+        dialog.geometry(f"+{x}+{y}")
+
+    def _grab_dialog(self, dialog):
+        """grab_set + фокус. На Linux grab падає, поки вікно не видно."""
+        dialog.update_idletasks()
+        try:
+            dialog.grab_set()
+        except tk.TclError:
+            try:
+                dialog.wait_visibility()
+                dialog.grab_set()
+            except tk.TclError:
+                pass
+        dialog.focus_force()
+
+    def _create_modal_dialog(self, title, width, height, *, minsize=None, grab=True,
+                             parent=None, on_shown=None):
+        """Створює модальне вікно ПО ЦЕНТРУ головного. Усі діалоги
+        застосунку (меню, \"Про застосунок\", налаштування, історія, ключ
+        API...) створюються тільки через цю функцію.
+
+        Позицію задаємо ОДРАЗУ разом з розміром (до першого показу), тож
+        вікно не з'являється \"де попало\" і не стрибає. Якщо діалог
+        відкривається поверх іншого модального вікна, transient робимо до
+        нього (не до головного), щоб воно лишалось поверх."""
+        previous_grab = self.grab_current()
+        dialog = ctk.CTkToplevel(self)
+        dialog.withdraw()  # прихований, поки код, що створює діалог, не наповнить його віджетами
+        dialog.title(title)
+        dialog.geometry(self._centered_geometry(dialog, width, height))
+        dialog.resizable(False, False)
+        if minsize:
+            dialog.minsize(*minsize)
+        if parent is None:
+            parent = previous_grab if previous_grab is not None else self
+        dialog.transient(parent)
+
+        # Показуємо ОДИН раз, коли код, що викликав цю функцію, вже
+        # додав усі віджети (він працює синхронно, до повернення в
+        # цикл подій). Інакше на macOS мигає порожній квадратик.
+        def reveal():
+            if not dialog.winfo_exists():
+                return
+            dialog.deiconify()
+            dialog.lift()
+            if grab:
+                self._grab_dialog(dialog)
+            else:
+                dialog.focus_force()
+            # on_shown - напр. закрити попереднє вікно ВЖЕ ПІСЛЯ того, як
+            # нове показане: так перехід між вікнами без \"дірки\" й смикання.
+            if on_shown is not None:
+                try:
+                    on_shown()
+                except Exception:  # noqa: BLE001
+                    pass
+
+        dialog.after(15, reveal)
+        return dialog
+
     def _ask_yes_no(self, title, message, yes_color=None, yes_hover_color=None, message_color=None):
         """
         Свій діалог підтвердження "Так/Ні" замість tkinter.messagebox.
@@ -1058,6 +1189,7 @@ class App(*_APP_BASE_CLASSES):
         previous_grab = self.grab_current()
 
         dialog = ctk.CTkToplevel(self)
+        dialog.withdraw()  # не показуємо, поки не наповнимо й не відцентруємо
         dialog.title(title)
         dialog.resizable(False, False)
         dialog.transient(previous_grab if previous_grab is not None else self)
@@ -1098,14 +1230,9 @@ class App(*_APP_BASE_CLASSES):
         # "нічого не сталось": підтвердження мусить дати чітку відповідь.
         dialog.protocol("WM_DELETE_WINDOW", on_no)
 
-        dialog.update_idletasks()
-        self.update_idletasks()
-        x = self.winfo_x() + (self.winfo_width() - dialog.winfo_width()) // 2
-        y = self.winfo_y() + (self.winfo_height() - dialog.winfo_height()) // 2
-        dialog.geometry(f"+{max(x, 0)}+{max(y, 0)}")
-
-        dialog.grab_set()
-        dialog.focus_force()
+        self._center_dialog_to_content(dialog)
+        dialog.deiconify()
+        self._grab_dialog(dialog)
         self.wait_window(dialog)  # блокує до закриття dialog (натиск кнопки або хрестика)
 
         if previous_grab is not None and previous_grab.winfo_exists():
@@ -1201,18 +1328,6 @@ class App(*_APP_BASE_CLASSES):
 
         self._apply_language()
 
-    def _install_extra_strings(self):
-        """Підмішує EXTRA_STRINGS у self.loc.t(), не чіпаючи localization.py."""
-        original_t = self.loc.t
-
-        def t(key, **kwargs):
-            extra = EXTRA_STRINGS.get(self.loc.language, EXTRA_STRINGS["en"]).get(key)
-            if extra is not None:
-                return extra.format(**kwargs) if kwargs else extra
-            return original_t(key, **kwargs)
-
-        self.loc.t = t
-
     def _has_api_tier(self):
         """True, якщо користувач уже обрав тип API-ключа (free/paid)."""
         return self.settings.get("api_tier") in VALID_API_TIERS
@@ -1252,7 +1367,7 @@ class App(*_APP_BASE_CLASSES):
         self.clear_button.configure(text=self.loc.t("clear_all"))
 
         self.search_prompt_label_widget.configure(text=self.loc.t("search_prompt_label"))
-        self.update_word_count()
+        self.update_char_count()
 
         self.submit_button.configure(text=self.loc.t("start_analysis"))
         self.stop_button.configure(text=self.loc.t("stop_analysis"))
@@ -1268,6 +1383,7 @@ class App(*_APP_BASE_CLASSES):
 
         self.export_pdf_button.configure(text=self.loc.t("export_pdf_button"))
         self.export_full_report_button.configure(text=self.loc.t("export_full_report_button"))
+        self.export_hint_label.configure(text=self.loc.t("export_hint"))
 
         self.report_list.configure(label_text=self.loc.t("report_label"))
 
@@ -1276,7 +1392,6 @@ class App(*_APP_BASE_CLASSES):
         if self._menu_dialog is not None and self._menu_dialog.winfo_exists():
             self._menu_dialog.title(self.loc.t("menu_title"))
             self._menu_title_label.configure(text=self.loc.t("menu_title"))
-            self._menu_info_btn.configure(text=self.loc.t("menu_info_button"))
             self._menu_theme_label.configure(text=self.loc.t("theme_label"))
             for btn, _, text_key in self.theme_buttons:
                 btn.configure(text=self.loc.t(text_key))
@@ -1288,6 +1403,8 @@ class App(*_APP_BASE_CLASSES):
                 text="" if self._has_api_tier() else self.loc.t("api_tier_required_hint")
             )
             self._menu_history_btn.configure(text=self.loc.t("view_history_button"))
+            self._menu_about_btn.configure(text=self.loc.t("menu_about_button"))
+            self._menu_exit_btn.configure(text=self.loc.t("menu_exit_button"))
             self._menu_reset_key_btn.configure(text=self.loc.t("reset_api_key_button"))
             self._menu_wipe_btn.configure(text=self.loc.t("wipe_all_button"))
 
@@ -1340,9 +1457,7 @@ class App(*_APP_BASE_CLASSES):
             self.photo_label.configure(text=self.loc.t("photo_placeholder"))
         elif self._photo_state == "no_results":
             self.photo_label.configure(text=self.loc.t("nothing_found_photo"))
-            self.description_label.configure(
-                text=self.loc.t("nothing_found_description", query=self._last_prompt_text)
-            )
+            self._set_caption("", self.loc.t("nothing_found_description", query=self._last_prompt_text))
 
         if self._no_results_label is not None:
             self._no_results_label.configure(text=self.loc.t("nothing_found_list"))
@@ -1355,7 +1470,7 @@ class App(*_APP_BASE_CLASSES):
 
     # ---------------- Меню (тема / мова / API-ключ / історія) ----------------
 
-    def _open_menu(self):
+    def _open_menu(self, parent=None, on_shown=None):
         """
         Єдине вікно з усіма налаштуваннями - тема, мова, скидання
         API-ключа і перехід до історії кадрів. Не персистентне -
@@ -1366,13 +1481,11 @@ class App(*_APP_BASE_CLASSES):
             self._menu_dialog.lift()
             return
 
-        dialog = ctk.CTkToplevel(self)
+        dialog = self._create_modal_dialog(
+            self.loc.t("menu_title"), 340, min(650, max(self.winfo_screenheight() - 100, 480)),
+            parent=parent, on_shown=on_shown,
+        )
         self._menu_dialog = dialog
-        dialog.title(self.loc.t("menu_title"))
-        dialog.geometry("340x630")
-        dialog.resizable(False, False)
-        dialog.transient(self)
-        dialog.grab_set()
 
         def on_menu_close():
             dialog.destroy()
@@ -1380,7 +1493,7 @@ class App(*_APP_BASE_CLASSES):
 
         dialog.protocol("WM_DELETE_WINDOW", on_menu_close)
 
-        # --- Заголовок вікна + кружок-іконка "ⓘ" поруч (як на мобільній) ---
+        # --- Заголовок вікна ("Про застосунок" тепер окрема кнопка нижче) ---
         title_row = ctk.CTkFrame(dialog, fg_color="transparent")
         title_row.pack(padx=20, pady=(20, 0), fill="x")
 
@@ -1389,16 +1502,6 @@ class App(*_APP_BASE_CLASSES):
             font=ctk.CTkFont(size=16, weight="bold"), anchor="w",
         )
         self._menu_title_label.pack(side="left")
-
-        self._menu_info_btn = ctk.CTkButton(
-            title_row, text=self.loc.t("menu_info_button"), width=28, height=28,
-            corner_radius=14, fg_color="transparent",
-            hover_color=("gray85", "gray25"),
-            text_color=("gray30", "gray70"),
-            font=ctk.CTkFont(size=16),
-            command=self._open_about_dialog,
-        )
-        self._menu_info_btn.pack(side="left", padx=(6, 0), pady=(3, 0))
 
         self.theme_buttons = []
         self.language_buttons = []
@@ -1470,20 +1573,26 @@ class App(*_APP_BASE_CLASSES):
         )
         self._menu_tier_hint.pack(padx=20, pady=(2, 0), fill="x")
 
-        ctk.CTkFrame(dialog, fg_color=("gray80", "gray25"), height=1).pack(fill="x", padx=20, pady=18)
+        ctk.CTkFrame(dialog, fg_color=("gray80", "gray25"), height=1).pack(fill="x", padx=20, pady=12)
 
         self._menu_history_btn = ctk.CTkButton(
             dialog, text=self.loc.t("view_history_button"),
             command=self._open_history_window,
         )
-        self._menu_history_btn.pack(padx=20, pady=(0, 10), fill="x")
+        self._menu_history_btn.pack(padx=20, pady=(0, 8), fill="x")
+
+        self._menu_about_btn = ctk.CTkButton(
+            dialog, text=self.loc.t("menu_about_button"),
+            command=self._open_about_dialog,
+        )
+        self._menu_about_btn.pack(padx=20, pady=(0, 8), fill="x")
 
         self._menu_reset_key_btn = ctk.CTkButton(
             dialog, text=self.loc.t("reset_api_key_button"),
             fg_color=DANGER_COLOR, hover_color=DANGER_HOVER_COLOR,
             command=self._confirm_reset_api_key,
         )
-        self._menu_reset_key_btn.pack(padx=20, pady=(0, 10), fill="x")
+        self._menu_reset_key_btn.pack(padx=20, pady=(0, 8), fill="x")
 
         # Повне видалення даних - для випадку, коли програму прибирають з
         # комп'ютера: macOS/Windows не видаляють теку даних разом із самою
@@ -1495,7 +1604,30 @@ class App(*_APP_BASE_CLASSES):
             text_color=STATUS_COLOR_ERROR, hover_color=("gray85", "gray20"),
             command=self._confirm_wipe_all_data,
         )
-        self._menu_wipe_btn.pack(padx=20, pady=(0, 20), fill="x")
+        self._menu_wipe_btn.pack(padx=20, pady=(0, 8), fill="x")
+
+        # "Вихід" - останній пункт меню: закриває програму (з підтвердженням).
+        self._menu_exit_btn = ctk.CTkButton(
+            dialog, text=self.loc.t("menu_exit_button"),
+            fg_color="transparent", border_width=1, text_color=("gray10", "gray90"),
+            hover_color=("gray85", "gray25"),
+            command=self._confirm_exit,
+        )
+        self._menu_exit_btn.pack(padx=20, pady=(0, 16), fill="x")
+
+    def _confirm_exit(self):
+        key = "exit_confirm_running" if self._analysis_running else "exit_confirm"
+        if not self._ask_yes_no(
+            self.loc.t("exit_title"), self.loc.t(key),
+            yes_color=BUTTON_COLOR, yes_hover_color=REPORT_ROW_HOVER_COLOR,
+        ):
+            return
+        self._on_close_window()
+
+    def _confirm_reset_all(self):
+        if not self._ask_yes_no(self.loc.t("clear_all_title"), self.loc.t("clear_all_confirm")):
+            return
+        self.reset_all()
 
     def _confirm_wipe_all_data(self):
         if not self._ask_yes_no(self.loc.t("wipe_all_title"), self.loc.t("wipe_all_confirm")):
@@ -1541,20 +1673,15 @@ class App(*_APP_BASE_CLASSES):
     def _open_about_dialog(self):
         """Вікно "Про застосунок" - коротка інструкція: що це за програма,
         5 кроків користування і кілька корисних підказок. Відкривається
-        кружком "ⓘ" у меню. Не персистентне - створюється заново щоразу.
+        пунктом "Про застосунок" у меню. Не персистентне - створюється заново щоразу.
         Сам вміст будується в _render_about_content, щоб його можна було
         перемалювати на льоту при зміні мови."""
         if self._about_dialog is not None and self._about_dialog.winfo_exists():
             self._about_dialog.lift()
             return
 
-        dialog = ctk.CTkToplevel(self)
+        dialog = self._create_modal_dialog(self.loc.t("about_title"), 480, 600)
         self._about_dialog = dialog
-        dialog.title(self.loc.t("about_title"))
-        dialog.geometry("480x600")
-        dialog.resizable(False, False)
-        dialog.transient(self)
-        dialog.grab_set()
 
         def on_close():
             dialog.destroy()
@@ -1563,7 +1690,7 @@ class App(*_APP_BASE_CLASSES):
         dialog.protocol("WM_DELETE_WINDOW", on_close)
 
         # Кнопка внизу пакується першою, щоб завжди лишатись видимою.
-        close_btn = ctk.CTkButton(dialog, text=self.loc.t("lightbox_close"), command=on_close)
+        close_btn = ctk.CTkButton(dialog, text=self.loc.t("dialog_understood"), command=on_close)
         close_btn.pack(side="bottom", pady=(0, 20))
         self._about_content = ctk.CTkFrame(dialog, fg_color="transparent")
         self._about_content.pack(fill="both", expand=True, padx=26, pady=(22, 10))
@@ -1574,7 +1701,7 @@ class App(*_APP_BASE_CLASSES):
         dialog.update_idletasks()
         needed = self._about_content.winfo_reqheight() + close_btn.winfo_reqheight() + 22 + 10 + 20 + 10
         height = min(needed, max(self.winfo_screenheight() - 120, 400))
-        dialog.geometry(f"480x{height}")
+        dialog.geometry(self._centered_geometry(dialog, 480, height))  # перецентруємо після зміни висоти
 
     def _render_about_content(self):
         """Малює (або перемальовує) вміст вікна "Про застосунок":
@@ -1655,13 +1782,8 @@ class App(*_APP_BASE_CLASSES):
             self._detail_dialog.lift()
             return
 
-        dialog = ctk.CTkToplevel(self)
+        dialog = self._create_modal_dialog(self.loc.t("settings_title"), 480, 340)
         self._detail_dialog = dialog
-        dialog.title(self.loc.t("settings_title"))
-        dialog.geometry("480x340")
-        dialog.resizable(False, False)
-        dialog.transient(self)
-        dialog.grab_set()
 
         def on_close():
             dialog.destroy()
@@ -1791,13 +1913,8 @@ class App(*_APP_BASE_CLASSES):
         # кліків після закриття цього інфо-вікна.
         previous_grab = self.grab_current()
 
-        dialog = ctk.CTkToplevel(self)
+        dialog = self._create_modal_dialog(self.loc.t("detail_info_title"), 400, 320)
         self._detail_info_dialog = dialog
-        dialog.title(self.loc.t("detail_info_title"))
-        dialog.geometry("400x320")
-        dialog.resizable(False, False)
-        dialog.transient(previous_grab if previous_grab is not None else self)
-        dialog.grab_set()
 
         def on_close():
             dialog.destroy()
@@ -1813,7 +1930,7 @@ class App(*_APP_BASE_CLASSES):
         )
         self._detail_info_body_label.pack(padx=20, pady=20, fill="both", expand=True)
 
-        ctk.CTkButton(dialog, text=self.loc.t("lightbox_close"), command=on_close).pack(pady=(0, 20))
+        ctk.CTkButton(dialog, text=self.loc.t("dialog_understood"), command=on_close).pack(pady=(0, 20))
 
     def _open_model_info_dialog(self):
         """Інформаційне вікно "Про типи аналізу" - пояснює різницю між
@@ -1826,13 +1943,8 @@ class App(*_APP_BASE_CLASSES):
 
         previous_grab = self.grab_current()
 
-        dialog = ctk.CTkToplevel(self)
+        dialog = self._create_modal_dialog(self.loc.t("model_info_title"), 420, 360)
         self._model_info_dialog = dialog
-        dialog.title(self.loc.t("model_info_title"))
-        dialog.geometry("420x360")
-        dialog.resizable(False, False)
-        dialog.transient(previous_grab if previous_grab is not None else self)
-        dialog.grab_set()
 
         def on_close():
             dialog.destroy()
@@ -1848,7 +1960,7 @@ class App(*_APP_BASE_CLASSES):
         )
         self._model_info_body_label.pack(padx=20, pady=20, fill="both", expand=True)
 
-        ctk.CTkButton(dialog, text=self.loc.t("lightbox_close"), command=on_close).pack(pady=(0, 20))
+        ctk.CTkButton(dialog, text=self.loc.t("dialog_understood"), command=on_close).pack(pady=(0, 20))
 
     # ---------------- API-ключ ----------------
 
@@ -1869,11 +1981,7 @@ class App(*_APP_BASE_CLASSES):
         check_api_key) у фоновому потоці, щоб вікно не "замерзало" на
         час запиту.
         """
-        dialog = ctk.CTkToplevel(self)
-        dialog.title(self.loc.t("setup_title"))
-        dialog.geometry("480x320")
-        dialog.resizable(False, False)
-        dialog.transient(self)
+        dialog = self._create_modal_dialog(self.loc.t("setup_title"), 480, 320)
 
         # Хрестик закриває вікно в обох режимах. Раніше при першому запуску
         # він був заблокований, але вікно модальне (grab_set) і блокує
@@ -1882,13 +1990,8 @@ class App(*_APP_BASE_CLASSES):
         # "Почати аналіз" вікно відкриється знову (див. start_analysis).
         dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
 
-        # update_idletasks() ПЕРЕД grab_set() - без цього на деяких
-        # системах (macOS) grab іноді не "схоплюється" одразу, якщо
-        # вікно ще не встигло повністю відмалюватись, і головне вікно
-        # програми лишається клікабельним у нього за спиною.
-        dialog.update_idletasks()
-        dialog.grab_set()      # блокує клік по головному вікну, поки відкрито
-        dialog.focus_force()
+        # grab_set і показ вікна робить _create_modal_dialog (після того,
+        # як вікно наповнене), тож тут нічого додатково не потрібно.
 
         description_key = "setup_description_first" if is_first_setup else "setup_description_change"
         ctk.CTkLabel(
@@ -1986,34 +2089,54 @@ class App(*_APP_BASE_CLASSES):
         закриває всю програму) - так само, як навігація "назад" у
         мобільній версії.
         """
-        if self._menu_dialog is not None and self._menu_dialog.winfo_exists():
-            self._menu_dialog.destroy()
+        old_menu = self._menu_dialog if (
+            self._menu_dialog is not None and self._menu_dialog.winfo_exists()
+        ) else None
         self._menu_dialog = None
 
         if self._history_window is not None and self._history_window.winfo_exists():
+            if old_menu is not None:
+                old_menu.destroy()
             self._history_window.lift()
             return
 
-        win = ctk.CTkToplevel(self)
+        # Меню закриваємо ПІСЛЯ того, як вікно історії показане (on_shown),
+        # а не до - інакше між ними видно \"дірку\" і смикання.
+        def close_old_menu():
+            if old_menu is not None and old_menu.winfo_exists():
+                old_menu.destroy()
+
+        win = self._create_modal_dialog(
+            self.loc.t("history_sessions_title"), 420, 580, minsize=(360, 400),
+            parent=self, on_shown=close_old_menu,
+        )
         self._history_window = win
-        win.title(self.loc.t("history_sessions_title"))
-        win.geometry("420x580")
-        win.minsize(360, 400)
-        win.transient(self)
-        win.grab_set()
 
         def on_close():
-            win.destroy()
             self._history_window = None
-            self._open_menu()
+
+            def close_history():
+                if win.winfo_exists():
+                    win.destroy()
+
+            # Спершу показуємо меню, потім прибираємо історію (так само без \"дірки\").
+            self._open_menu(parent=self, on_shown=close_history)
 
         win.protocol("WM_DELETE_WINDOW", on_close)
 
         self._history_selection_mode = False
         self._history_selected_ids = set()
 
+        back_row = ctk.CTkFrame(win, fg_color="transparent")
+        back_row.pack(fill="x", padx=15, pady=(15, 0))
+        ctk.CTkButton(
+            back_row, text=self.loc.t("back_button"), width=90,
+            fg_color="transparent", border_width=1, text_color=("gray10", "gray90"),
+            hover_color=("gray85", "gray25"), command=on_close,
+        ).pack(side="left")
+
         top_row = ctk.CTkFrame(win, fg_color="transparent")
-        top_row.pack(fill="x", padx=15, pady=(15, 5))
+        top_row.pack(fill="x", padx=15, pady=(10, 5))
 
         self._history_delete_btn = ctk.CTkButton(
             top_row, text=self.loc.t("history_delete_button"), width=110,
@@ -2249,18 +2372,18 @@ class App(*_APP_BASE_CLASSES):
         self._history_current_session = session
         self._history_session_frames = list(session.get("frames", []))
 
-        win = ctk.CTkToplevel(self)
+        win = self._create_modal_dialog(
+            self.loc.t("history_title"), 420, 620, minsize=(360, 420)
+        )
         self._history_session_window = win
-        win.title(self.loc.t("history_title"))
-        win.geometry("420x620")
-        win.minsize(360, 420)
-        win.transient(self)
-        win.grab_set()
 
         def on_close():
             win.destroy()
             self._history_session_window = None
             self._history_current_session = None
+            # повертаємо керування списку сесій під цим вікном
+            if self._history_window is not None and self._history_window.winfo_exists():
+                self._history_window.grab_set()
 
         win.protocol("WM_DELETE_WINDOW", on_close)
 
@@ -2269,6 +2392,11 @@ class App(*_APP_BASE_CLASSES):
 
         header_row = ctk.CTkFrame(win, fg_color="transparent")
         header_row.pack(fill="x", padx=15, pady=(15, 2))
+        ctk.CTkButton(
+            header_row, text=self.loc.t("back_button"), width=90,
+            fg_color="transparent", border_width=1, text_color=("gray10", "gray90"),
+            hover_color=("gray85", "gray25"), command=on_close,
+        ).pack(side="left", padx=(0, 10))
         ctk.CTkLabel(
             header_row, text=self._format_session_title(session), font=ctk.CTkFont(weight="bold"),
             anchor="w", justify="left",
@@ -2523,6 +2651,7 @@ class App(*_APP_BASE_CLASSES):
                 path, results,
                 video_name=session.get("video_name", ""),
                 video_path=session.get("video_path", ""),
+                lang=self.loc.language,
             )
             self._set_status("export_pdf_success", path=os.path.basename(path))
         except Exception as error:
@@ -2537,12 +2666,9 @@ class App(*_APP_BASE_CLASSES):
         if not os.path.exists(screenshot_path):
             return
 
-        win = ctk.CTkToplevel(self)
-        win.title(self.loc.t("history_preview_title"))
-        win.geometry("560x620")
-        win.minsize(360, 420)
-        win.transient(self)
-        win.grab_set()
+        win = self._create_modal_dialog(
+            self.loc.t("history_preview_title"), 560, 620, minsize=(360, 420)
+        )
 
         timestamp_sec = frame.get("timestamp_sec")
         time_str = format_time(timestamp_sec) if timestamp_sec is not None else ""
@@ -2608,6 +2734,7 @@ class App(*_APP_BASE_CLASSES):
                 export_frame_to_pdf(
                     path, screenshot_path, time_str, frame.get("description", ""),
                     video_name=video_name, video_path=video_path,
+                    lang=self.loc.language,
                 )
                 set_preview_status("export_pdf_success", path=os.path.basename(path))
             except Exception as error:
@@ -2905,13 +3032,33 @@ class App(*_APP_BASE_CLASSES):
 
         self._dnd_status_reset_job = self.after(duration_ms, restore)
 
-    def update_word_count(self, event=None):
-        text = self.prompt_box.get("1.0", "end").strip()
-        count = len(text.split()) if text else 0
-        color = STATUS_COLOR_NEUTRAL if count <= MAX_WORDS_IN_PROMPT else STATUS_COLOR_ERROR
+    def _on_prompt_modified(self, event=None):
+        """Жорсткий ліміт: усе, що довше за MAX_PROMPT_CHARS символів
+        (друк, вставка, перетягування тексту), одразу обрізається."""
+        textbox = self.prompt_box._textbox
+        if not textbox.edit_modified():
+            return
+        textbox.edit_modified(False)
+        if len(textbox.get("1.0", "end-1c")) > MAX_PROMPT_CHARS:
+            textbox.delete(f"1.0+{MAX_PROMPT_CHARS}c", "end-1c")
+        self.update_char_count()
+
+    def update_char_count(self, event=None):
+        count = len(self.prompt_box.get("1.0", "end-1c"))
+        color = STATUS_COLOR_NEUTRAL if count < MAX_PROMPT_CHARS else WARNING_COLOR
         self.word_count_label.configure(
-            text=self.loc.t("word_count", count=count, max=MAX_WORDS_IN_PROMPT), text_color=color
+            text=self.loc.t("char_count", count=count, max=MAX_PROMPT_CHARS), text_color=color
         )
+
+    def _set_caption(self, time_str, text):
+        """Підпис під фото в єдиному стилі: час (жирний) ліворуч + текст праворуч."""
+        if time_str:
+            self.caption_time_label.configure(text=time_str)
+            self.caption_time_label.grid()
+        else:
+            self.caption_time_label.configure(text="")
+            self.caption_time_label.grid_remove()
+        self.description_label.configure(text=text)
 
     def reset_all(self):
         """Повертає програму в початковий стан: шлях, промпт, звіт, фото."""
@@ -2928,7 +3075,7 @@ class App(*_APP_BASE_CLASSES):
         self.file_label.configure(text=self.loc.t("no_file_selected"))
 
         self.prompt_box.delete("1.0", "end")
-        self.update_word_count()
+        self.update_char_count()
 
         self._set_status(None)
         self._set_progress(None)
@@ -2941,7 +3088,7 @@ class App(*_APP_BASE_CLASSES):
         self._no_results_label = None
         self._last_prompt_text = ""
 
-        self.description_label.configure(text="")
+        self._set_caption("", "")
         self.export_pdf_button.configure(state="disabled")
         self.export_full_report_button.configure(state="disabled")
 
@@ -2978,7 +3125,7 @@ class App(*_APP_BASE_CLASSES):
         self.current_result = None
         self._no_results_label = None
 
-        self.description_label.configure(text="")
+        self._set_caption("", "")
         self.export_pdf_button.configure(state="disabled")
         self.export_full_report_button.configure(state="disabled")
 
@@ -3038,16 +3185,16 @@ class App(*_APP_BASE_CLASSES):
 
     def start_analysis(self):
         if not self.video_path:
-            self._set_status("status_choose_video_first")
+            self._set_status("status_choose_video_first", color=STATUS_COLOR_ERROR)
             return
 
         if not self.selected_mode:
-            self._set_status("status_choose_model")
+            self._set_status("status_choose_model", color=STATUS_COLOR_ERROR)
             return
 
         prompt_text = self.prompt_box.get("1.0", "end").strip()
         if not prompt_text:
-            self._set_status("status_write_query")
+            self._set_status("status_write_query", color=STATUS_COLOR_ERROR)
             return
 
         # Тип API-ключа обов'язковий: без нього не знаємо, під який
@@ -3060,10 +3207,8 @@ class App(*_APP_BASE_CLASSES):
             self._open_api_key_dialog(is_first_setup=True)
             return
 
-        # Обрізаємо текст запиту, якщо слів більше ліміту
-        words = prompt_text.split()
-        if len(words) > MAX_WORDS_IN_PROMPT:
-            prompt_text = " ".join(words[:MAX_WORDS_IN_PROMPT])
+        # Страховка: поле вже не пускає понад ліміт, але обрізаємо ще раз
+        prompt_text = prompt_text[:MAX_PROMPT_CHARS]
 
         self._cancel_event.clear()
         self._set_analysis_running(True)
@@ -3945,9 +4090,7 @@ class App(*_APP_BASE_CLASSES):
             self._no_results_label.pack(pady=10)
 
             self._photo_state = "no_results"
-            self.description_label.configure(
-                text=self.loc.t("nothing_found_description", query=prompt_text)
-            )
+            self._set_caption("", self.loc.t("nothing_found_description", query=prompt_text))
 
             # Чистимо праву панель з фото (див. коментар у _create_photo_label)
             self.current_pil_image = None
@@ -3962,21 +4105,50 @@ class App(*_APP_BASE_CLASSES):
         self.export_full_report_button.configure(state="normal")
 
         for result in results:
-            button_text = f"{result['time_str']}\n{result['description'][:45]}"
-            # result=result потрібен, щоб КОЖНА кнопка запам'ятала СВІЙ result.
-            # Без цього всі кнопки в кінці показували б лише останній result
-            # (особливість того, як Python обробляє змінні в циклі).
-            btn = ctk.CTkButton(
-                self.report_list,
-                text=button_text,
-                anchor="w",
-                fg_color=BUTTON_COLOR,
-                command=lambda result=result: self.show_photo(result),
-            )
-            btn.pack(fill="x", pady=3, padx=3)
-            self.report_buttons.append((btn, result))
+            row = self._make_report_row(result)
+            row.pack(fill="x", pady=3, padx=3)
+            self.report_buttons.append((row, result))
 
         self.show_photo(results[0])
+
+    def _make_report_row(self, result):
+        """Рядок списку звіту в єдиному стилі: час (жирний, колонка фіксованої
+        ширини) ліворуч, опис праворуч, все вирівняно по лівому/верхньому краю."""
+        row = ctk.CTkFrame(self.report_list, fg_color=BUTTON_COLOR, corner_radius=6)
+        row.grid_columnconfigure(1, weight=1)
+
+        time_lbl = ctk.CTkLabel(
+            row, text=result["time_str"], width=REPORT_TIME_COL_WIDTH,
+            font=self.font_report_time, text_color="white", anchor="w", justify="left",
+        )
+        time_lbl.grid(row=0, column=0, sticky="nw", padx=(10, 6), pady=7)
+
+        description = result["description"]
+        short = description if len(description) <= 45 else description[:45].rstrip() + "…"
+        text_lbl = ctk.CTkLabel(
+            row, text=short, font=self.font_report_text, text_color="white",
+            anchor="w", justify="left", wraplength=150,
+        )
+        text_lbl.grid(row=0, column=1, sticky="nw", padx=(0, 8), pady=7)
+
+        def on_enter(event=None):
+            if self.current_result is not result:
+                row.configure(fg_color=REPORT_ROW_HOVER_COLOR)
+
+        def on_leave(event=None):
+            row.configure(
+                fg_color=BUTTON_COLOR_SELECTED if self.current_result is result else BUTTON_COLOR
+            )
+
+        for widget in (row, time_lbl, text_lbl):
+            widget.bind("<Button-1>", lambda e, r=result: self.show_photo(r))
+            widget.bind("<Enter>", on_enter)
+            widget.bind("<Leave>", on_leave)
+            try:
+                widget.configure(cursor="hand2")
+            except Exception:  # noqa: BLE001 - курсор не критичний
+                pass
+        return row
 
     def show_photo(self, result):
         self.current_result = result
@@ -3995,7 +4167,7 @@ class App(*_APP_BASE_CLASSES):
         if selected_btn is not None:
             self._scroll_report_to_button(selected_btn)
 
-        self.description_label.configure(text=self._result_caption(result))
+        self._set_caption(result["time_str"], result["description"])
         self.export_pdf_button.configure(state="normal")
 
         # Відкриваємо оригінал ОДИН раз і зберігаємо - далі просто
@@ -4012,7 +4184,7 @@ class App(*_APP_BASE_CLASSES):
             # зникла попередня картинка, і пишемо причину замість неї.
             self.photo_label.destroy()
             self._create_photo_label()
-            self.photo_label.configure(text=f"Не вдалось відкрити скріншот:\n{error}")
+            self.photo_label.configure(text=self.loc.t("photo_open_error", error=error))
             return
         self.photo_label.configure(cursor="hand2")
         self._render_photo()
@@ -4024,7 +4196,8 @@ class App(*_APP_BASE_CLASSES):
             self.pan_x = 0
             self.pan_y = 0
             if self.lightbox_caption_label is not None:
-                self.lightbox_caption_label.configure(text=self._result_caption(result))
+                self.lightbox_time_label.configure(text=result["time_str"])
+                self.lightbox_caption_label.configure(text=result["description"])
                 fit = getattr(self, "_lightbox_fit_caption", None)
                 if fit is not None:
                     fit()  # новий опис може мати іншу кількість рядків
@@ -4062,6 +4235,7 @@ class App(*_APP_BASE_CLASSES):
                 self.current_result["description"],
                 video_name=video_name,
                 video_path=self.video_path or "",
+                lang=self.loc.language,
             )
             self._set_status("export_pdf_success", path=os.path.basename(path))
         except Exception as error:
@@ -4086,7 +4260,8 @@ class App(*_APP_BASE_CLASSES):
 
         video_name = os.path.basename(self.video_path) if self.video_path else ""
         try:
-            export_report_to_pdf(path, results, video_name=video_name, video_path=self.video_path or "")
+            export_report_to_pdf(path, results, video_name=video_name,
+                                 video_path=self.video_path or "", lang=self.loc.language)
             self._set_status("export_pdf_success", path=os.path.basename(path))
         except Exception as error:
             self._set_status("export_pdf_error", error=error)
@@ -4227,11 +4402,21 @@ class App(*_APP_BASE_CLASSES):
         # Підпис - рівно по центру панелі (place, а не pack, щоб не залежати
         # від ширини кнопок з боків). Довгий опис переноситься на 2 рядки,
         # але не заходить під кнопки: wraplength підганяється під ширину.
-        caption_text = self._result_caption(self.current_result) if self.current_result else ""
-        self.lightbox_caption_label = ctk.CTkLabel(
-            controls, text=caption_text, font=ctk.CTkFont(size=16), justify="center", wraplength=600,
+        time_text = self.current_result["time_str"] if self.current_result else ""
+        desc_text = self.current_result["description"] if self.current_result else ""
+        caption_frame = ctk.CTkFrame(controls, fg_color="transparent")
+        caption_frame.place(relx=0.5, rely=0.5, anchor="center")
+        # Той самий стиль, що й у звіті: час жирним у фіксованій колонці + текст праворуч.
+        self.lightbox_time_label = ctk.CTkLabel(
+            caption_frame, text=time_text, width=90, font=self.font_report_time_big,
+            text_color="white", anchor="w", justify="left",
         )
-        self.lightbox_caption_label.place(relx=0.5, rely=0.5, anchor="center")
+        self.lightbox_time_label.grid(row=0, column=0, sticky="nw", padx=(0, 10))
+        self.lightbox_caption_label = ctk.CTkLabel(
+            caption_frame, text=desc_text, font=self.font_report_text_big,
+            text_color="white", anchor="w", justify="left", wraplength=500,
+        )
+        self.lightbox_caption_label.grid(row=0, column=1, sticky="nw")
 
         def fit_caption(event=None):
             """Підганяє підпис під панель: ширина переносу - щоб не заходити
@@ -4241,9 +4426,9 @@ class App(*_APP_BASE_CLASSES):
             if label is None or not label.winfo_exists():
                 return
             width = event.width if event is not None else controls.winfo_width()
-            label.configure(wraplength=max(200, width - 2 * 200))
-            label.update_idletasks()
-            needed = max(48, label.winfo_reqheight() + 8)
+            label.configure(wraplength=max(200, width - 2 * 200 - 100))
+            caption_frame.update_idletasks()
+            needed = max(48, caption_frame.winfo_reqheight() + 8)
             if abs(int(controls.cget("height")) - needed) > 1:
                 controls.configure(height=needed)
 
@@ -4271,6 +4456,7 @@ class App(*_APP_BASE_CLASSES):
         self.lightbox_canvas = None
         self.lightbox_image_item = None
         self.lightbox_caption_label = None
+        self.lightbox_time_label = None
 
     def zoom_in(self):
         if self.zoom_index < len(ZOOM_LEVELS) - 1:
