@@ -32,7 +32,8 @@ datas = []
 binaries = []
 hiddenimports = []
 
-for package in ("customtkinter",):
+# customtkinter - теми; tkinterdnd2 - бібліотеки drag-and-drop; av - ffmpeg-dll для швидкої нарізки
+for package in ("customtkinter", "tkinterdnd2", "av"):
     pkg_datas, pkg_binaries, pkg_hidden = collect_all(package)
     datas += pkg_datas
     binaries += pkg_binaries
@@ -41,7 +42,8 @@ for package in ("customtkinter",):
 # Вшитий API-ключ (файл у .gitignore, створюється перед збіркою).
 # config.py імпортує його через try/except, тож про всяк випадок
 # вказуємо явно, щоб PyInstaller точно його запакував.
-hiddenimports += ["embedded_key"]
+# video_fast імпортується всередині функції - вказуємо явно, щоб точно запакувало
+hiddenimports += ["embedded_key", "video_fast"]
 
 # Власні ресурси: іконка вікна (читається через app_paths.resource_path)
 datas += [("assets/icon.ico", "assets"), ("assets/icon_1024.png", "assets")]
