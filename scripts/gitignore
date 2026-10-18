@@ -1,0 +1,21 @@
+# --- Ключі: НІКОЛИ не публікувати ---
+.env
+embedded_key.py
+scripts/embedded_key.py
+
+# --- Дані, які створює сама програма ---
+screenshots/
+logs/
+
+# --- Збірка ---
+dist/
+build/
+
+# --- Python / IDE / система ---
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.venv*/
+.idea/
+.DS_Store
