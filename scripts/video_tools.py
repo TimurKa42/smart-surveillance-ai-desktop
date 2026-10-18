@@ -2173,6 +2173,9 @@ def extract_frames(video_path, max_frames=300, min_interval_sec=0.5, progress_ca
                 })
                 if not use_hw:
                     _notify_frame_ready(on_frame_ready, frames[-1], len(frames) - 1)
+                # Лічильник "нарізано X" - працює і з hw-декодером
+                if frame_count_callback:
+                    frame_count_callback(len(frames))
         segment_best = None
 
     last_reported_percent = -1
@@ -2292,6 +2295,8 @@ def extract_frames(video_path, max_frames=300, min_interval_sec=0.5, progress_ca
                         last_kept_gray = gray
                         if not use_hw:
                             _notify_frame_ready(on_frame_ready, frames[-1], len(frames) - 1)
+                        if frame_count_callback:
+                            frame_count_callback(len(frames))
                         if len(frames) >= max_frames:
                             break
         finally:
