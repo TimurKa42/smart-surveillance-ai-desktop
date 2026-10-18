@@ -4554,7 +4554,11 @@ class App(*_APP_BASE_CLASSES):
             controls, text="+", width=40, command=self.zoom_in
         ).pack(side="right", padx=(5, 0))
 
-        self.zoom_label = ctk.CTkLabel(controls, text="100%", width=60)
+        # білий текст, бо фон лайтбокса завжди темний
+        self.zoom_label = ctk.CTkLabel(
+            controls, text="100%", width=60,
+            text_color="white", font=self.font_report_text_big,
+        )
         self.zoom_label.pack(side="right", padx=5)
 
         ctk.CTkButton(
