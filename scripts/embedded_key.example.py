@@ -1,1 +1,1 @@
-EMBEDDED_API_KEY = "AQ.Ab8RN6IieneaJFAox8R2o7-8weDKzrJPdPz_2aLzoFklg6KbDQ"
+EMBEDDED_API_KEY = "мій_ключ"
