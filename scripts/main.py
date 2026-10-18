@@ -186,6 +186,67 @@ PROGRESS_BAR_COLOR = "#33C761"
 # саме не пускає далі цього числа (див. _on_prompt_modified).
 MAX_PROMPT_CHARS = 200
 
+# Нові тексти (вітальне вікно, власний/стандартний ключ). Підмішуються в
+# self.loc.t() - див. App._install_extra_strings. Якщо захочеш, ці ключі
+# можна перенести в localization.py, а цей словник і виклик видалити.
+# Тут же перевизначено кілька старих текстів, які згадували кнопки, яких
+# більше нема ("Змінити ключ"), і вибір типу ключа.
+EXTRA_STRINGS = {
+    "ua": {
+        "welcome_title": "Вітаємо у Smart Surveillance AI!",
+        "welcome_text": (
+            "Програма знаходить людей і об'єкти на відео за вашим описом "
+            "та показує знайдені моменти зі скріншотами."
+        ),
+        "welcome_step_1": "Оберіть відео або перетягніть файл у вікно",
+        "welcome_step_2": "Напишіть, кого або що шукати",
+        "welcome_step_3": "Натисніть «Почати аналіз» і перегляньте результат",
+        "welcome_note": "Програма вже готова до роботи - ключ вводити не потрібно.",
+        "own_key_button": "Використати власний ключ",
+        "default_key_button": "Повернутись до стандартного ключа",
+        "default_key_title": "Стандартний ключ",
+        "default_key_confirm": (
+            "Повернутись до стандартного ключа? Ваш власний ключ буде "
+            "видалено з цього комп'ютера."
+        ),
+        "status_default_key_restored": "Використовується стандартний ключ",
+        "status_error_quota_daily": (
+            "Вичерпано добовий ліміт Gemini. Спробуй завтра або встав власний ключ у «Меню»"
+        ),
+        "status_error_invalid_key": "API-ключ недійсний. Онови його в «Меню»",
+        "about_tip_1": (
+            "Програма працює зі стандартним ключем. За бажання підключіть "
+            "власний ключ у «Меню»."
+        ),
+    },
+    "en": {
+        "welcome_title": "Welcome to Smart Surveillance AI!",
+        "welcome_text": (
+            "The app finds people and objects in a video from your description "
+            "and shows the moments it found with screenshots."
+        ),
+        "welcome_step_1": "Choose a video or drag the file into the window",
+        "welcome_step_2": "Write who or what to look for",
+        "welcome_step_3": "Press \u201cStart analysis\u201d and check the result",
+        "welcome_note": "The app is ready to use - no key setup needed.",
+        "own_key_button": "Use my own key",
+        "default_key_button": "Go back to the default key",
+        "default_key_title": "Default key",
+        "default_key_confirm": (
+            "Go back to the default key? Your own key will be removed "
+            "from this computer."
+        ),
+        "status_default_key_restored": "Using the default key",
+        "status_error_quota_daily": (
+            "The daily Gemini limit is used up. Try again tomorrow or add your own key in \u201cMenu\u201d"
+        ),
+        "status_error_invalid_key": "API key is invalid. Update it in \u201cMenu\u201d",
+        "about_tip_1": (
+            "The app works with a default key. If you want, add your own key in \u201cMenu\u201d."
+        ),
+    },
+}
+
 # Єдиний стиль рядка звіту (час + текст): однакові шрифти, час - в окремій
 # колонці фіксованої ширини ліворуч, текст - праворуч, все по лівому краю.
 # Використовується і в списку моментів, і під фото, і в повноекранному перегляді.
@@ -458,6 +519,7 @@ class App(*_APP_BASE_CLASSES):
         if self.settings["api_tier"] not in VALID_API_TIERS:
             self.settings["api_tier"] = None
         self.loc = Localization(self.settings["language"])
+        self._install_extra_strings()
         ctk.set_appearance_mode(THEME_MODES.get(self.settings["theme"], "System"))
         ctk.set_default_color_theme("blue")
 
@@ -641,7 +703,7 @@ class App(*_APP_BASE_CLASSES):
         # а не одразу в __init__ - вікно встигає повністю намалюватись,
         # і модальне вікно налаштувань лягає поверх уже видимого вікна,
         # а не поверх порожнього екрану під час запуску.
-        self.after(150, self._ensure_api_key)
+        self.after(150, self._on_start)
 
     def _on_close_window(self):
         self._closing = True
@@ -688,8 +750,65 @@ class App(*_APP_BASE_CLASSES):
         if self._wipe_on_exit:
             self._wipe_data_now()
 
+    def _install_extra_strings(self):
+        """Підмішує EXTRA_STRINGS у self.loc.t(), не чіпаючи localization.py."""
+        original_t = self.loc.t
+
+        def t(key, **kwargs):
+            extra = EXTRA_STRINGS.get(self.loc.language, EXTRA_STRINGS["en"]).get(key)
+            if extra is not None:
+                return extra.format(**kwargs) if kwargs else extra
+            return original_t(key, **kwargs)
+
+        self.loc.t = t
+
+    def _on_start(self):
+        """Перший запуск - спершу вітальне вікно, потім перевірка ключа."""
+        if self.settings.get("welcome_shown"):
+            self._ensure_api_key()
+        else:
+            self._open_welcome_dialog()
+
+    def _open_welcome_dialog(self):
+        """Вітальне вікно, показується один раз (прапорець welcome_shown)."""
+        dialog = self._create_modal_dialog(self.loc.t("welcome_title"), 460, 440)
+
+        def on_close():
+            self.settings["welcome_shown"] = True
+            save_settings(self.settings)
+            dialog.destroy()
+            self._ensure_api_key()
+
+        dialog.protocol("WM_DELETE_WINDOW", on_close)
+
+        # Кнопка внизу пакується першою, щоб завжди лишатись видимою.
+        ctk.CTkButton(
+            dialog, text=self.loc.t("dialog_understood"), command=on_close
+        ).pack(side="bottom", pady=(0, 24))
+
+        ctk.CTkLabel(
+            dialog, text=self.loc.t("welcome_title"),
+            font=ctk.CTkFont(size=22, weight="bold"), wraplength=400,
+        ).pack(padx=26, pady=(26, 8))
+        ctk.CTkLabel(
+            dialog, text=self.loc.t("welcome_text"), wraplength=400,
+            justify="left", text_color=STATUS_COLOR_NEUTRAL,
+        ).pack(padx=26, pady=(0, 16))
+
+        for number in range(1, 4):
+            ctk.CTkLabel(
+                dialog, text="\u2022  " + self.loc.t("welcome_step_" + str(number)),
+                wraplength=400, justify="left", anchor="w",
+            ).pack(fill="x", padx=26, pady=3)
+
+        ctk.CTkLabel(
+            dialog, text=self.loc.t("welcome_note"), wraplength=400,
+            justify="left", anchor="w", text_color=STATUS_COLOR_NEUTRAL,
+        ).pack(fill="x", padx=26, pady=(16, 0))
+
     def _ensure_api_key(self):
-        """Якщо ключа ще нема - одразу відкриває вікно налаштувань ключа."""
+        """Якщо ключа нема взагалі (ні вшитого, ні власного) - відкриває
+        вікно налаштувань ключа. У збірці з вшитим ключем це не спрацює."""
         if not config.load_api_key():
             self._open_api_key_dialog(is_first_setup=True)
 
@@ -1329,8 +1448,17 @@ class App(*_APP_BASE_CLASSES):
         self._apply_language()
 
     def _has_api_tier(self):
-        """True, якщо користувач уже обрав тип API-ключа (free/paid)."""
+        """True, якщо тип API-ключа відомий: для вшитого ключа - завжди
+        (він безкоштовний), для власного - якщо користувач його обрав."""
+        if not config.is_using_custom_key() and config.has_embedded_key():
+            return True
         return self.settings.get("api_tier") in VALID_API_TIERS
+
+    def _effective_api_tier(self):
+        """Тип ключа, з яким реально працюємо: вшитий ключ = "free"."""
+        if not config.is_using_custom_key():
+            return "free"
+        return self.settings.get("api_tier") or "free"
 
     def _select_api_tier(self, tier_key):
         if tier_key not in VALID_API_TIERS:
@@ -1405,7 +1533,7 @@ class App(*_APP_BASE_CLASSES):
             self._menu_history_btn.configure(text=self.loc.t("view_history_button"))
             self._menu_about_btn.configure(text=self.loc.t("menu_about_button"))
             self._menu_exit_btn.configure(text=self.loc.t("menu_exit_button"))
-            self._menu_reset_key_btn.configure(text=self.loc.t("reset_api_key_button"))
+            self._menu_reset_key_btn.configure(text=self._key_button_text())
             self._menu_wipe_btn.configure(text=self.loc.t("wipe_all_button"))
 
         # Так само з відкритим вікном історії аналізів (список сесій).
@@ -1545,10 +1673,16 @@ class App(*_APP_BASE_CLASSES):
         # --- Тип API-ключа: Безкоштовний / Платний (обов'язкове поле) ---
         # Впливає на те, наскільки агресивно gemini_tools.py дроселює
         # паралельні запити до Gemini - див. коментар біля API_TIER_OPTIONS.
-        self._menu_tier_label = ctk.CTkLabel(dialog, text=self.loc.t("api_tier_label"), anchor="w")
+        # Увесь блок лежить в одному контейнері: з вшитим ключем тип обирати
+        # не потрібно (він завжди безкоштовний), тому контейнер не показуємо.
+        tier_block = ctk.CTkFrame(dialog, fg_color="transparent")
+        if config.is_using_custom_key() or not config.has_embedded_key():
+            tier_block.pack(fill="x")
+
+        self._menu_tier_label = ctk.CTkLabel(tier_block, text=self.loc.t("api_tier_label"), anchor="w")
         self._menu_tier_label.pack(padx=20, pady=(16, 6), fill="x")
 
-        tier_row = ctk.CTkFrame(dialog, fg_color="transparent")
+        tier_row = ctk.CTkFrame(tier_block, fg_color="transparent")
         tier_row.pack(padx=20, fill="x")
         self.api_tier_buttons = []
         current_tier = self.settings.get("api_tier")   # None = ще не обрано, жодна кнопка не підсвічена
@@ -1567,7 +1701,7 @@ class App(*_APP_BASE_CLASSES):
 
         # Червона підказка, поки тип ключа не обрано (зникає після вибору).
         self._menu_tier_hint = ctk.CTkLabel(
-            dialog,
+            tier_block,
             text="" if self._has_api_tier() else self.loc.t("api_tier_required_hint"),
             text_color=STATUS_COLOR_ERROR, anchor="w",
         )
@@ -1588,9 +1722,8 @@ class App(*_APP_BASE_CLASSES):
         self._menu_about_btn.pack(padx=20, pady=(0, 8), fill="x")
 
         self._menu_reset_key_btn = ctk.CTkButton(
-            dialog, text=self.loc.t("reset_api_key_button"),
-            fg_color=DANGER_COLOR, hover_color=DANGER_HOVER_COLOR,
-            command=self._confirm_reset_api_key,
+            dialog, text=self._key_button_text(),
+            command=self._on_key_button,
         )
         self._menu_reset_key_btn.pack(padx=20, pady=(0, 8), fill="x")
 
@@ -1648,6 +1781,43 @@ class App(*_APP_BASE_CLASSES):
             os.remove(SETTINGS_PATH)
         except OSError:
             pass
+
+    def _key_button_text(self):
+        """Підпис кнопки ключа в меню залежно від того, який ключ зараз."""
+        if not config.has_embedded_key():
+            return self.loc.t("reset_api_key_button")      # збірка без вшитого ключа - як раніше
+        if config.is_using_custom_key():
+            return self.loc.t("default_key_button")
+        return self.loc.t("own_key_button")
+
+    def _on_key_button(self):
+        if not config.has_embedded_key():
+            self._confirm_reset_api_key()
+            return
+        if config.is_using_custom_key():
+            self._confirm_default_key()
+            return
+        # Зараз стандартний ключ - даємо вставити власний. Меню закриваємо,
+        # щоб після збереження ключа воно відкрилось уже з вибором типу ключа.
+        if self._menu_dialog is not None and self._menu_dialog.winfo_exists():
+            self._menu_dialog.destroy()
+        self._menu_dialog = None
+        self._open_api_key_dialog(is_first_setup=False)
+
+    def _confirm_default_key(self):
+        """Видаляє власний ключ - програма знову бере вшитий."""
+        confirmed = self._ask_yes_no(
+            self.loc.t("default_key_title"),
+            self.loc.t("default_key_confirm"),
+            yes_color=BUTTON_COLOR, yes_hover_color=REPORT_ROW_HOVER_COLOR,
+        )
+        if not confirmed:
+            return
+        config.clear_api_key()
+        if self._menu_dialog is not None and self._menu_dialog.winfo_exists():
+            self._menu_dialog.destroy()
+        self._menu_dialog = None
+        self._set_status("status_default_key_restored")
 
     def _confirm_reset_api_key(self):
         confirmed = self._ask_yes_no(
@@ -2016,7 +2186,7 @@ class App(*_APP_BASE_CLASSES):
         entry_row.pack(padx=20, pady=5)
 
         entry = ctk.CTkEntry(entry_row, width=330, placeholder_text="AQ.Ab8...")
-        existing_key = config.load_api_key()
+        existing_key = config.load_custom_key()   # НЕ load_api_key(): вшитий ключ показувати не можна
         if existing_key:
             entry.insert(0, existing_key)
         entry.pack(side="left")
@@ -3582,7 +3752,7 @@ class App(*_APP_BASE_CLASSES):
                     # де зараз розраховане дроселювання (паралелізм/затримки між
                     # запитами) під ліміти free-tier - на "paid" воно має
                     # вимикатись або суттєво послаблюватись.
-                    api_tier=self.settings.get("api_tier") or "free",   # страховка: start_analysis уже перевірив вибір
+                    api_tier=self._effective_api_tier(),   # вшитий ключ = free, власний - те, що обрав користувач
                 )
             except GeminiApiError:
                 # Фатальна (не тимчасова) помилка Gemini - нема сенсу
