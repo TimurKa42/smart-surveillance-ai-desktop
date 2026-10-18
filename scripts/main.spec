@@ -15,6 +15,10 @@
 #
 # PyInstaller не вміє крос-компіляцію: .exe збирається на Windows,
 # .app - на macOS. Запускати з теки проєкту, у активованому .venv311.
+#
+# ВАЖЛИВО: перед збіркою поруч з main.py має лежати embedded_key.py з
+# вшитим ключем (див. embedded_key.example.py). Без нього збірка вийде
+# без стандартного ключа, і користувачу доведеться вводити власний.
 import sys
 from PyInstaller.utils.hooks import collect_all
 
@@ -33,6 +37,11 @@ for package in ("customtkinter",):
     datas += pkg_datas
     binaries += pkg_binaries
     hiddenimports += pkg_hidden
+
+# Вшитий API-ключ (файл у .gitignore, створюється перед збіркою).
+# config.py імпортує його через try/except, тож про всяк випадок
+# вказуємо явно, щоб PyInstaller точно його запакував.
+hiddenimports += ["embedded_key"]
 
 # Власні ресурси: іконка вікна (читається через app_paths.resource_path)
 datas += [("assets/icon.ico", "assets"), ("assets/icon_1024.png", "assets")]
