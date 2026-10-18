@@ -24,6 +24,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller
 
+      - name: Embed API key
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          printf 'EMBEDDED_API_KEY = "%s"\n' "$GEMINI_API_KEY" > embedded_key.py
+
       - name: Build app
         run: pyinstaller --noconfirm --clean main.spec
 
