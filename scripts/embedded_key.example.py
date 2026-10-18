@@ -1,3 +1,1 @@
-# Скопіюй цей файл як embedded_key.py і впиши свій ключ.
-# embedded_key.py ОБОВ'ЯЗКОВО має бути в .gitignore - у GitHub його не завантажувати!
-EMBEDDED_API_KEY = "ТВІЙ_КЛЮЧ_GEMINI"
+EMBEDDED_API_KEY = "AQ.Ab8RN6IieneaJFAox8R2o7-8weDKzrJPdPz_2aLzoFklg6KbDQ"
