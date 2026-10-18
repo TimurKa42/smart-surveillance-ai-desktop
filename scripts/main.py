@@ -1214,105 +1214,93 @@ class App(*_APP_BASE_CLASSES):
         x, y = self._center_position(int(width * scale), int(height * scale))
         return f"{width}x{height}+{x}+{y}"
 
-    def _center_dialog_to_content(self, dialog):
-        """Центрує вже наповнений діалог (розмір - за вмістом)."""
-        dialog.update_idletasks()
-        x, y = self._center_position(dialog.winfo_reqwidth(), dialog.winfo_reqheight())
-        dialog.geometry(f"+{x}+{y}")
-
-    def _grab_dialog(self, dialog):
-        """grab_set + фокус. На Linux grab падає, поки вікно не видно."""
-        dialog.update_idletasks()
-        try:
-            dialog.grab_set()
-        except tk.TclError:
-            try:
-                dialog.wait_visibility()
-                dialog.grab_set()
-            except tk.TclError:
-                pass
-        dialog.focus_force()
-
-    def _create_modal_dialog(self, title, width, height, *, minsize=None, grab=True,
-                             parent=None, on_shown=None):
+    def _create_modal_dialog(self, title, width, height, *, minsize=None, resizable=False,
+                             grab=True, parent=None, on_shown=None):
         """Створює модальне вікно ПО ЦЕНТРУ головного. Усі діалоги
-        застосунку (меню, \"Про застосунок\", налаштування, історія, ключ
-        API...) створюються тільки через цю функцію.
+        створюються тільки через цю функцію.
 
-        Позицію задаємо ОДРАЗУ разом з розміром (до першого показу), тож
-        вікно не з'являється \"де попало\" і не стрибає. Якщо діалог
-        відкривається поверх іншого модального вікна, transient робимо до
-        нього (не до головного), щоб воно лишалось поверх."""
+        Вікно показуємо із затримкою, а grab беремо лише коли вікно
+        реально видно. Інакше невидиме вікно блокує головне."""
         previous_grab = self.grab_current()
         dialog = ctk.CTkToplevel(self)
-        dialog.withdraw()  # прихований, поки код, що створює діалог, не наповнить його віджетами
+        dialog.withdraw()  # ховаємо, поки не наповнимо віджетами
         dialog.title(title)
         dialog.geometry(self._centered_geometry(dialog, width, height))
-        dialog.resizable(False, False)
+        dialog.resizable(resizable, resizable)
         if minsize:
             dialog.minsize(*minsize)
         if parent is None:
             parent = previous_grab if previous_grab is not None else self
         dialog.transient(parent)
 
-        # Показуємо ОДИН раз, коли код, що викликав цю функцію, вже
-        # додав усі віджети (він працює синхронно, до повернення в
-        # цикл подій). Інакше на macOS мигає порожній квадратик.
+        # На Windows customtkinter ~200 мс сам ховає/показує вікно
+        # (колір заголовка, іконка). Чекаємо, поки він закінчить.
+        show_delay_ms = 300 if sys.platform.startswith("win") else 15
+
+        def try_grab(attempt=0):
+            # Беремо grab лише якщо вікно видно. Якщо ні - пробуємо ще.
+            if not dialog.winfo_exists():
+                return
+            try:
+                if dialog.winfo_viewable():
+                    dialog.grab_set()
+                    dialog.focus_force()
+                    return
+            except tk.TclError:
+                pass
+            if attempt < 20:  # ~2 секунди спроб
+                dialog.after(100, lambda: try_grab(attempt + 1))
+            else:
+                logger.warning(f"Вікно «{title}» так і не з'явилось - grab не беремо")
+
+        def show():
+            # Показуємо вікно і піднімаємо його поверх
+            dialog.update_idletasks()
+            dialog.deiconify()
+            dialog.lift()
+            dialog.focus_force()
+
         def reveal():
             if not dialog.winfo_exists():
                 return
-            dialog.deiconify()
-            dialog.lift()
-            if grab:
-                self._grab_dialog(dialog)
-            else:
-                dialog.focus_force()
-            # on_shown - напр. закрити попереднє вікно ВЖЕ ПІСЛЯ того, як
-            # нове показане: так перехід між вікнами без \"дірки\" й смикання.
+            try:
+                show()
+                if grab:
+                    try_grab()
+                logger.info(f"Вікно «{title}» відкрито")
+            except tk.TclError as error:
+                logger.warning(f"Не вдалось показати вікно «{title}»: {error}")
             if on_shown is not None:
                 try:
                     on_shown()
-                except Exception:  # noqa: BLE001
-                    pass
+                except Exception as error:  # noqa: BLE001
+                    logger.warning(f"on_shown впав: {error}")
+            dialog.after(1000, check_visible)
 
-        dialog.after(15, reveal)
+        def check_visible():
+            # Страховка: якщо вікно зникло - показуємо ще раз
+            if not dialog.winfo_exists():
+                return
+            try:
+                if dialog.state() == "withdrawn" or not dialog.winfo_viewable():
+                    logger.warning(f"Вікно «{title}» сховалось - показую знову")
+                    show()
+                    if grab:
+                        try_grab()
+            except tk.TclError:
+                pass
+
+        dialog.after(show_delay_ms, reveal)
         return dialog
 
     def _ask_yes_no(self, title, message, yes_color=None, yes_hover_color=None, message_color=None):
-        """
-        Свій діалог підтвердження "Так/Ні" замість tkinter.messagebox.
-        askyesno - у системного діалогу кнопки завжди мовою ОС
-        ("Yes"/"No"), це неможливо перекласти штатними засобами
-        tkinter. Блокує виконання так само, як messagebox (через
-        wait_window) - повертає True/False лише після відповіді
-        користувача.
-
-        yes_color/yes_hover_color - необов'язковий колір кнопки "Так".
-        За замовчуванням (None) лишається DANGER_COLOR, як і раніше -
-        досі всі підтвердження в програмі були про руйнівні дії
-        (скидання ключа, видалення кадрів). Параметр потрібен для
-        майбутніх НЕ-небезпечних підтверджень (напр. "продовжити на
-        власний ризик?" при невідомій тривалості відео), де червона
-        кнопка виглядала б як помилкове застереження.
-
-        message_color - необов'язковий колір ТЕКСТУ повідомлення
-        (напр. WARNING_COLOR для "увага, а не помилка"). За
-        замовчуванням - звичайний колір лейбла.
-
-        Якщо діалог відкривається ПОВЕРХ іншого модального вікна (меню
-        чи історія кадрів - в обох свій grab_set), після закриття
-        відновлюємо grab на те вікно - інакше воно лишиться на екрані,
-        але "мертвим" для кліків: Tk-грабом керує лише ОДНЕ вікно
-        одночасно, і він не відновлюється автоматично сам.
-        """
+        """Діалог Так/Ні. Повертає True/False після відповіді.
+        yes_color - колір кнопки "Так" (за замовчуванням червоний),
+        message_color - колір тексту повідомлення."""
+        # Запам'ятовуємо, хто мав grab, щоб повернути його після закриття
         previous_grab = self.grab_current()
 
-        dialog = ctk.CTkToplevel(self)
-        dialog.withdraw()  # не показуємо, поки не наповнимо й не відцентруємо
-        dialog.title(title)
-        dialog.resizable(False, False)
-        dialog.transient(previous_grab if previous_grab is not None else self)
-
+        dialog = self._create_modal_dialog(title, 400, 200)
         result = {"confirmed": False}
 
         message_kwargs = {"text_color": message_color} if message_color else {}
@@ -1331,29 +1319,29 @@ class App(*_APP_BASE_CLASSES):
             result["confirmed"] = True
             dialog.destroy()
 
-        no_btn = ctk.CTkButton(
+        ctk.CTkButton(
             button_row, text=self.loc.t("dialog_no"), width=100,
             fg_color="transparent", border_width=1, text_color=("gray10", "gray90"),
             command=on_no,
-        )
-        no_btn.pack(side="left", padx=(0, 8))
+        ).pack(side="left", padx=(0, 8))
 
-        yes_btn = ctk.CTkButton(
+        ctk.CTkButton(
             button_row, text=self.loc.t("dialog_yes"), width=100,
             fg_color=yes_color or DANGER_COLOR, hover_color=yes_hover_color or DANGER_HOVER_COLOR,
             command=on_yes,
-        )
-        yes_btn.pack(side="left")
+        ).pack(side="left")
 
-        # Хрестик/Cmd+Q по цьому вікну - трактуємо як "Ні", а не як
-        # "нічого не сталось": підтвердження мусить дати чітку відповідь.
+        # Хрестик = "Ні"
         dialog.protocol("WM_DELETE_WINDOW", on_no)
 
-        self._center_dialog_to_content(dialog)
-        dialog.deiconify()
-        self._grab_dialog(dialog)
-        self.wait_window(dialog)  # блокує до закриття dialog (натиск кнопки або хрестика)
+        # Підганяємо висоту під текст і центруємо
+        dialog.update_idletasks()
+        height = int(dialog.winfo_reqheight() / self._window_scaling(dialog))
+        dialog.geometry(self._centered_geometry(dialog, 400, height))
 
+        self.wait_window(dialog)  # чекаємо закриття
+
+        # Повертаємо grab попередньому вікну
         if previous_grab is not None and previous_grab.winfo_exists():
             previous_grab.grab_set()
 
@@ -2277,7 +2265,7 @@ class App(*_APP_BASE_CLASSES):
                 old_menu.destroy()
 
         win = self._create_modal_dialog(
-            self.loc.t("history_sessions_title"), 420, 580, minsize=(360, 400),
+            self.loc.t("history_sessions_title"), 420, 580, minsize=(360, 400), resizable=True,
             parent=self, on_shown=close_old_menu,
         )
         self._history_window = win
@@ -2543,7 +2531,7 @@ class App(*_APP_BASE_CLASSES):
         self._history_session_frames = list(session.get("frames", []))
 
         win = self._create_modal_dialog(
-            self.loc.t("history_title"), 420, 620, minsize=(360, 420)
+            self.loc.t("history_title"), 420, 620, minsize=(360, 420), resizable=True
         )
         self._history_session_window = win
 
@@ -2837,7 +2825,7 @@ class App(*_APP_BASE_CLASSES):
             return
 
         win = self._create_modal_dialog(
-            self.loc.t("history_preview_title"), 560, 620, minsize=(360, 420)
+            self.loc.t("history_preview_title"), 560, 620, minsize=(360, 420), resizable=True
         )
 
         timestamp_sec = frame.get("timestamp_sec")
