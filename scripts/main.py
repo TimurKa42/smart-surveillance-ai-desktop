@@ -3495,11 +3495,6 @@ class App(*_APP_BASE_CLASSES):
             def combined_is_cancelled():
                 return self._cancel_event.is_set() or gemini_stop_event.is_set()
 
-            def on_frame_ready(frame, _index):
-                with frames_lock:
-                    frames.append(frame)
-                frame_queue.put(frame)
-
             # ------------------------------------------------------------
             # Прогрес-бар і статус-текст.
             #
@@ -3656,6 +3651,15 @@ class App(*_APP_BASE_CLASSES):
                 # через on_frame_ready/len(frames).
                 analysis_progress_box["parallel_frame_count_hint"] = count
                 _push_combined_progress()
+
+            def on_frame_ready(frame, _index):
+                # Новий кадр нарізано - додаємо в список і в чергу
+                with frames_lock:
+                    frames.append(frame)
+                frame_queue.put(frame)
+                # Одразу оновлюємо "нарізано X" (на коротких відео стояло 0)
+                _push_combined_progress()
+
 
             def extraction_worker():
                 try:
