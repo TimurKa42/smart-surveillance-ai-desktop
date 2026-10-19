@@ -12,23 +12,16 @@
 """
 pdf_export.py (десктопна версія)
 
-Генерація PDF-звіту зі скріншотами знайдених моментів: час у відео
-(ЧЧ:ММ:СС), опис від Gemini, номер кадру. Уміє два режими:
+Створює PDF-звіт зі скріншотами знайдених моментів: час у відео,
+опис від Gemini і номер моменту. Є два режими:
 
-- export_frame_to_pdf()  - один PDF на ОДИН момент (як у мобільній версії).
-- export_report_to_pdf() - один PDF з УСІМА знайденими моментами відео,
-  по сторінці на кожен (десктопна версія показує весь звіт одразу,
-  тож "зберегти все одним файлом" тут природна можливість).
+- export_frame_to_pdf()  - PDF з одним моментом.
+- export_report_to_pdf() - PDF з усіма моментами, по одній сторінці на кожен.
 
-Навмисно окремий модуль (а не метод усередині main.py) - як і
-video_tools.py/gemini_tools.py, це чиста логіка без UI-залежностей,
-її легко тестувати і повторно використати.
+Це окремий модуль, без роботи з інтерфейсом, тому його легко тестувати.
 
-Примітка: бібліотека - fpdf2 (чиста Python, без скомпільованого коду).
-Це успадковано з мобільної версії (там reportlab не збирався під
-Android), але лишили свідомо й тут - однакова логіка генерації звіту
-для обох версій застосунку простіша в підтримці, ніж дві різні
-бібліотеки.
+Бібліотека fpdf2 - чиста Python, без складних збірок. Її взяли з
+мобільної версії, бо однаковий код для обох версій простіше підтримувати.
 """
 
 __author__ = "Тимур Каленик (Timur Kalenik)"
@@ -45,14 +38,10 @@ from PIL import Image
 from localization import Localization
 
 # ---------------------------------------------------------------------
-# Кирилиця: вбудовані шрифти fpdf (Helvetica і т.д.) не мають
-# кириличних гліфів - український/англійський текст з кирилицею просто
-# не з'явиться в PDF. Тому шукаємо системний TTF-шрифт з підтримкою
-# кирилиці і реєструємо його. Перелік - типові шляхи для Windows,
-# macOS і Linux; перевіряються по черзі, береться перший, що реально
-# є на диску. Якщо жодного не знайшлось - тихо лишаємось на Helvetica
-# (латиниця й цифри відобразяться коректно, кирилиця - ні, але
-# застосунок не впаде).
+# Кирилиця. Вбудовані шрифти fpdf не мають кирилиці, тому шукаємо
+# системний TTF-шрифт з кирилицею. Беремо перший, який знайдеться.
+# Якщо нічого немає, лишаємо Helvetica: кирилиця не відобразиться,
+# але програма не впаде.
 # ---------------------------------------------------------------------
 _FONT_CANDIDATES = [
     # Windows
@@ -71,8 +60,8 @@ _FONT_CANDIDATES = [
 
 
 def _find_cyrillic_font():
-    """Повертає (шлях_regular, шлях_bold) першого знайденого шрифту,
-    або (None, None), якщо нічого не знайшлося."""
+    """Повертає (звичайний, жирний) шрифт, який знайшли на диску.
+    Якщо нічого немає, повертає (None, None)."""
     for regular_path, bold_path in _FONT_CANDIDATES:
         if os.path.exists(regular_path):
             if os.path.exists(bold_path):
@@ -82,22 +71,20 @@ def _find_cyrillic_font():
 
 
 # ---------------------------------------------------------------------
-# Локалізація PDF: усі рядки лежать у localization.py (ключі "pdf_*"),
-# тут лише беремо перекладач для потрібної мови. localization.py - чисті
-# дані без UI-залежностей, тож модуль лишається придатним для тестів.
-# Невідомий код мови Localization сам замінює на українську.
+# Тексти для PDF лежать у localization.py (ключі pdf_*).
+# Тут тільки беремо перекладач потрібною мовою.
 # ---------------------------------------------------------------------
 def _translator(lang):
     return Localization(lang).t
 
 
-PAGE_W = 210.0  # A4, мм
-PAGE_H = 297.0
-MARGIN = 18.0
+PAGE_W = 210.0  # ширина A4, мм
+PAGE_H = 297.0  # висота A4, мм
+MARGIN = 18.0   # відступ від краю, мм
 
 
 def _wrap_text(text, pdf, max_width):
-    """Розбиває текст на рядки так, щоб кожен влазив у max_width."""
+    """Розбиває текст на рядки, щоб кожен вміщався в max_width."""
     words = text.split()
     lines = []
     current = ""
@@ -115,10 +102,9 @@ def _wrap_text(text, pdf, max_width):
 
 
 def _make_pdf():
-    """Створює новий FPDF-документ з уже налаштованими полями/шрифтом.
-    Повертає (pdf, font_name) - font_name треба передавати далі у
-    _render_frame_page(), щоб не шукати шрифт на диску повторно для
-    кожної сторінки багатосторінкового звіту."""
+    """Створює новий PDF з полями і шрифтом.
+    Повертає (pdf, назва_шрифту). Назву потім передаємо далі,
+    щоб не шукати шрифт на диску для кожної сторінки."""
     pdf = FPDF(orientation="P", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=MARGIN)
     pdf.set_margins(MARGIN, MARGIN, MARGIN)
@@ -137,15 +123,14 @@ def _make_pdf():
 def _render_frame_page(pdf, font_name, time_str, description, image_path,
                         video_name="", video_path="", frame_index=None,
                         heading=None, lang="ua"):
-    """Малює ОДНУ сторінку звіту (заголовок + метадані + фото + опис)
-    на вже доданій сторінці pdf. Спільна для export_frame_to_pdf() і
-    export_report_to_pdf(), щоб не дублювати верстку двічі."""
+    """Малює одну сторінку звіту: заголовок, дані, фото і опис.
+    Використовується і в export_frame_to_pdf, і в export_report_to_pdf."""
     content_width = PAGE_W - 2 * MARGIN
     t = _translator(lang)
     if heading is None:
         heading = t("pdf_heading_frame")
 
-    # --- Заголовок ---
+    # Заголовок
     pdf.set_font(font_name, "B", 16)
     pdf.cell(content_width, 9, heading, new_x="LMARGIN", new_y="NEXT")
 
@@ -154,7 +139,7 @@ def _render_frame_page(pdf, font_name, time_str, description, image_path,
     pdf.line(MARGIN, y, PAGE_W - MARGIN, y)
     pdf.set_y(y + 6)
 
-    # --- Метадані (час, кадр, відео, дата створення звіту) ---
+    # Дані про момент: час, номер, відео, дата
     pdf.set_font(font_name, "", 11)
     meta_lines = [t("pdf_time", value=time_str)]
     if frame_index is not None:
@@ -169,7 +154,7 @@ def _render_frame_page(pdf, font_name, time_str, description, image_path,
         pdf.cell(content_width, 6, line, new_x="LMARGIN", new_y="NEXT")
     pdf.ln(2)
 
-    # --- Зображення ---
+    # Картинка
     if image_path and os.path.exists(image_path):
         try:
             with Image.open(image_path) as img:
@@ -177,7 +162,7 @@ def _render_frame_page(pdf, font_name, time_str, description, image_path,
             aspect = img_h / float(img_w)
 
             max_img_w = content_width
-            max_img_h = PAGE_H * 0.55  # не даємо картинці "з'їсти" місце під опис
+            max_img_h = PAGE_H * 0.55  # картинка не має займати весь аркуш, місце лишаємо під опис
             draw_w = max_img_w
             draw_h = draw_w * aspect
             if draw_h > max_img_h:
@@ -194,7 +179,7 @@ def _render_frame_page(pdf, font_name, time_str, description, image_path,
         pdf.set_font(font_name, "", 10)
         pdf.cell(content_width, 10, t("pdf_image_missing"), new_x="LMARGIN", new_y="NEXT")
 
-    # --- Опис від ШІ ---
+    # Опис від Gemini
     pdf.set_font(font_name, "B", 12)
     pdf.cell(content_width, 7, t("pdf_description"), new_x="LMARGIN", new_y="NEXT")
 
@@ -209,16 +194,16 @@ def export_frame_to_pdf(output_path, image_path, time_str, description,
                          video_name="", video_path="", frame_index=None,
                          lang="ua"):
     """
-    Створює один PDF-файл зі скріном ОДНОГО кадру + метаданими.
+    Створює PDF з одним моментом (скріншот + дані).
 
-    output_path   - куди зберегти PDF (повний шлях, з .pdf)
-    image_path    - шлях до JPG/PNG скріншота кадру
-    time_str      - таймкод у відео, формат "ЧЧ:ММ:СС" (video_tools.format_time)
-    description   - опис від Gemini
-    video_name    - назва вихідного відеофайлу (опційно)
-    video_path    - повний шлях до вихідного відеофайлу (опційно)
-    frame_index   - порядковий номер моменту в списку знахідок (опційно, 1-based)
-    lang          - мова підписів у PDF: "ua" або "en" (self.loc.language)
+    output_path - куди зберегти PDF
+    image_path  - шлях до скріншота
+    time_str    - час у відео, формат ЧЧ:ММ:СС
+    description - опис від Gemini
+    video_name  - назва відео (необов'язково)
+    video_path  - повний шлях до відео (необов'язково)
+    frame_index - номер моменту, з 1 (необов'язково)
+    lang        - мова тексту в PDF: "ua" або "en"
     """
     pdf, font_name = _make_pdf()
     pdf.add_page()
@@ -231,14 +216,12 @@ def export_frame_to_pdf(output_path, image_path, time_str, description,
 def export_report_to_pdf(output_path, results, video_name="", video_path="",
                          lang="ua"):
     """
-    Створює ОДИН PDF з УСІМА знайденими моментами - по сторінці на
-    кожен, у тому ж порядку, в якому вони показані у звіті (тобто
-    відсортовані за часом, як їх готує main.py).
+    Створює один PDF з усіма знайденими моментами, по одній сторінці
+    на кожен. Порядок такий самий, як у списку в програмі.
 
-    results    - список словників у тому ж форматі, що й у main.py:
-        {"time_str", "description", "screenshot_path", ...}
-    video_name - назва вихідного відеофайлу (опційно)
-    video_path - повний шлях до вихідного відеофайлу (опційно)
+    results    - список словників: {"time_str", "description", "screenshot_path"}
+    video_name - назва відео (необов'язково)
+    video_path - повний шлях до відео (необов'язково)
     """
     pdf, font_name = _make_pdf()
 
@@ -261,9 +244,8 @@ def export_report_to_pdf(output_path, results, video_name="", video_path="",
 
 
 def build_pdf_filename(time_str, frame_index=None):
-    """Ім'я файлу без конфліктів: час + (за наявності) номер моменту +
-    мітка створення, щоб повторний експорт того ж кадру не
-    перезаписував попередній файл мовчки."""
+    """Ім'я файлу з часом і міткою часу. Так повторний експорт
+    не перезаписує старий файл."""
     safe_time = time_str.replace(":", "-")
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if frame_index is not None:
@@ -272,7 +254,7 @@ def build_pdf_filename(time_str, frame_index=None):
 
 
 def build_full_report_filename():
-    """Ім'я файлу для експорту ВСЬОГО звіту одним PDF."""
+    """Ім'я файлу для звіту з усіма моментами."""
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return f"report_full_{stamp}.pdf"
 
