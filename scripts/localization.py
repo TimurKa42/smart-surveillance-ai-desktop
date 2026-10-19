@@ -12,16 +12,14 @@
 """
 localization.py
 
-Проста локалізація інтерфейсу без сторонніх бібліотек - звичайний
-словник рядків на дві мови: українську (за замовчуванням) та англійську.
-Російська мова прибрана повністю.
+Переклади інтерфейсу. Є два словники: українська (за замовчуванням)
+і англійська. Російської немає.
 
 Як користуватись:
     loc = Localization("ua")
     label.configure(text=loc.t("start_analysis"))
 
-Для рядків з підстановкою значень (наприклад "Знайдено: {count}")
-достатньо передати іменований аргумент:
+Якщо в тексті є {count}, передаємо значення іменованим аргументом:
     loc.t("status_done", count=5)
 """
 
@@ -224,7 +222,7 @@ TEXTS = {
         "export_hint": "«Один кадр» зберігає лише відкритий знімок. «Повний звіт» — усі знайдені моменти в одному файлі.",
         "export_pdf_dialog_title": "Зберегти PDF",
 
-        # --- Текст усередині самого PDF-звіту (використовує pdf_export.py) ---
+        # Текст самого PDF-звіту (його бере pdf_export.py)
         "pdf_heading_frame": "Smart Surveillance - звіт по кадру",
         "pdf_heading_report": "Smart Surveillance - звіт ({i}/{n})",
         "pdf_time": "Час у відео: {value}",
@@ -463,7 +461,7 @@ TEXTS = {
         "export_hint": "“Single frame” saves only the open screenshot. “Full report” saves all found moments in one file.",
         "export_pdf_dialog_title": "Save PDF",
 
-        # --- Text inside the PDF report itself (used by pdf_export.py) ---
+        # Text inside the PDF report itself (used by pdf_export.py)
         "pdf_heading_frame": "Smart Surveillance - frame report",
         "pdf_heading_report": "Smart Surveillance - report ({i}/{n})",
         "pdf_time": "Video time: {value}",
@@ -517,7 +515,7 @@ TEXTS = {
 
 
 class Localization:
-    """Зберігає поточну мову інтерфейсу і повертає переклади за ключем."""
+    """Тримає поточну мову і віддає переклад за ключем."""
 
     def __init__(self, language=DEFAULT_LANGUAGE):
         self.language = language if language in TEXTS else DEFAULT_LANGUAGE
@@ -528,12 +526,10 @@ class Localization:
 
     def t(self, key, **kwargs):
         """
-        Повертає переклад за ключем поточної мови.
+        Повертає переклад для поточної мови.
 
-        Якщо в тексті є місця під підстановку (наприклад "{count}"),
-        передай їх іменованими аргументами - вони підставляться через
-        str.format(). Якщо ключа раптом нема в словнику - повертаємо
-        сам ключ, щоб інтерфейс не падав, а показував хоч щось.
+        Якщо передано kwargs, підставляє їх у текст через format().
+        Якщо ключа немає, повертає сам ключ, щоб програма не впала.
         """
         text = TEXTS[self.language].get(key, key)
         if kwargs:
