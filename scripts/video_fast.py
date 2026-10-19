@@ -10,26 +10,17 @@
 # =============================================================================
 
 """
-Швидка нарізка кадрів: замість декодування ВСІХ кадрів відео (або довгого
-"точного" сикання cv2 з дедекодуванням від keyframe до цілі) беремо кадр
-ПРЯМО З КЛЮЧОВОГО КАДРУ (I-frame), найближчого до потрібного моменту.
+video_fast.py
 
-Навіщо: на логах видно, що на годинному відео з рідкими keyframe нарізка
-цілком впирається в декодування (~350 кадр/с -> 120 тис. кадрів = ~340 с),
-хоча для 400 підсумкових кадрів (1 кадр на ~10 с) потрібно лише ~800 зображень.
-cv2.set(POS_FRAMES) сикає ТОЧНО: стає на keyframe і декодує вперед до цілі
-(до довжини GOP кадрів на КОЖЕН кандидат). Тут ми зупиняємось на keyframe
-(+ кілька кадрів вперед) і чесно повертаємо ФАКТИЧНИЙ timestamp кадру -
-похибка лише в тому, що "сітка" вибірки не ідеально рівна (зсув до довжини GOP).
+Швидка нарізка кадрів через PyAV. Замість декодування всього відео
+беремо кадри з ключових кадрів (I-frame), найближчих до потрібного часу.
 
-Коли вмикається (див. extract_frames_fast): лише якщо PyAV встановлено, відео
-не коротше FAST_MIN_DURATION_SEC і GOP не довший за довжину сегмента (щоб у
-кожному сегменті був принаймні один keyframe). Інакше кидається
-FastPathUnavailable ДО початку роботи - і video_tools.extract_frames() іде
-старим шляхом без жодних змін у поведінці.
+Коли використовується: тільки якщо встановлено PyAV, відео довше
+90 секунд і ключові кадри не рідші за довжину відрізка. Інакше кидаємо
+FastPathUnavailable, і video_tools.extract_frames() працює старим шляхом.
 
-Публічний інтерфейс: extract_frames_fast(...) з тими ж колбеками й тим же
-форматом результату, що й extract_frames().
+Функція extract_frames_fast() має ті самі колбеки і той самий формат
+результату, що й extract_frames().
 """
 
 __author__ = "Тимур Каленик (Timur Kalenik)"
@@ -52,7 +43,7 @@ import cv2
 try:
     import av
     AV_AVAILABLE = True
-except Exception:  # noqa: BLE001 - PyAV нема (напр. Android) -> просто старий шлях
+except Exception:  # noqa: BLE001 - PyAV немає (наприклад, на Android), беремо старий шлях
     av = None
     AV_AVAILABLE = False
 
@@ -60,27 +51,25 @@ import video_tools as vt
 
 logger = logging.getLogger(__name__)
 
-# Не вмикаємо швидкий шлях на коротких відео: старий шлях там і так
-# швидкий, а точність вибірки (рівна сітка) важливіша за секунди.
+# Короткі відео беремо старим шляхом: там він і так швидкий і точніший.
 FAST_MIN_DURATION_SEC = 90.0
-# Скільки seek-точок на сегмент (кандидатів для вибору "найрухливішого").
+# Скільки точок перевіряємо в одному відрізку, щоб вибрати найрухливішу.
 FAST_SEEKS_PER_SEGMENT = 2
-# Після keyframe дозволяємо декодувати ще стільки кадрів уперед, щоб
-# підійти ближче до цілі (дешево: це P/B-кадри одного GOP).
+# Після ключового кадру декодуємо ще кілька кадрів, щоб ближче підійти до цілі.
 FAST_FORWARD_FRAMES = 12
-# Довжина вікна (с), у якому міряємо частоту keyframe, і кількість проб.
+# Вікно (с) і точки, де міряємо, як часто в файлі стоять ключові кадри.
 _GOP_PROBE_WINDOW_SEC = 40.0
 _GOP_PROBE_POINTS = (0.2, 0.5, 0.8)
-# Розмір сірої картинки для детекції руху (швидше за 1024 px).
+# Ширина картинки для порівняння руху (менша означає швидше).
 _MOTION_WIDTH = 320
-# Максимум потоків-декодерів (кожен - свій av.open).
+# Максимум паралельних потоків декодування.
 FAST_MAX_WORKERS = 4
-# Менше стільки seek-ів - паралелізм не окупається.
+# Якщо seek-ів мало, паралельний режим не окупиться.
 _FAST_PARALLEL_MIN_SEEKS = 120
 
 
 class FastPathUnavailable(Exception):
-    """Швидкий шлях не підходить - викликач має піти старим шляхом."""
+    """Швидкий шлях не підходить, тож треба брати старий."""
 
 
 def _open_video(video_path, single_thread):
@@ -108,9 +97,11 @@ def _duration_sec(container, stream, video_path):
 
 
 def _estimate_gop_sec(container, stream, duration_sec):
-    """Дивиться ЛИШЕ пакети (без декодування) у кількох місцях файлу й
-    повертає медіанний інтервал між keyframe (с) або None, якщо keyframe
-    у вікні майже нема (GOP довший за вікно)."""
+    """
+    Дивимось тільки пакети (без декодування) і міряємо відстань між
+    ключовими кадрами. Повертаємо медіану в секундах або None, якщо
+    ключових кадрів майже немає.
+    """
     time_base = stream.time_base
     keyframe_times = []
     for fraction in _GOP_PROBE_POINTS:
@@ -135,9 +126,10 @@ def _estimate_gop_sec(container, stream, duration_sec):
 
 
 def _grab_near(container, stream, target_sec, forward_frames):
-    """Сикає на keyframe <= target_sec, декодує його і до forward_frames
-    кадрів уперед. Повертає (frame, pts_sec) для кадру з найбільшим pts,
-    що не перевищує ціль (або сам keyframe, якщо ціль занадто далеко)."""
+    """
+    Переходимо до ключового кадру перед target_sec, декодуємо його і ще
+    кілька кадрів. Беремо останній кадр, що не пізніший за ціль.
+    """
     time_base = stream.time_base
     container.seek(int(target_sec / time_base), stream=stream, backward=True, any_frame=False)
     chosen = None
@@ -160,10 +152,10 @@ def _grab_near(container, stream, target_sec, forward_frames):
 
 
 def _frame_to_arrays(frame, rotation, full_dir):
-    """PyAV-кадр -> (маленький BGR для Gemini, повнорозмірний або None).
-    Зменшення робить swscale ще ДО перетворення в BGR (дешевше, ніж
-    to_ndarray + cv2.resize). Ширина обмежується ПІСЛЯ повороту, як і в
-    vt._resize_then_rotate()."""
+    """
+    Перетворюємо кадр PyAV на маленький BGR для Gemini і, якщо треба,
+    на повний розмір для кешу. Зменшуємо ще до переходу в BGR, так швидше.
+    """
     if full_dir:
         full = frame.to_ndarray(format="bgr24")
         if rotation:
@@ -194,8 +186,10 @@ def _motion_gray(small_bgr):
 
 def _run_slice(video_path, seg_start, seg_end, segment_sec, per_segment, rotation, full_dir,
                single_thread, cancel_event, frame_queue, stats):
-    """Обробляє сегменти [seg_start, seg_end) в СВОЄМУ av.open. Кладе готові
-    кадри в frame_queue; повертає їх список."""
+    """
+    Обробляє свій набір відрізків у власному VideoCapture. Готові кадри
+    кладе в чергу і повертає списком.
+    """
     container, stream = _open_video(video_path, single_thread)
     frames = []
     seen_pts = set()
@@ -206,6 +200,7 @@ def _run_slice(video_path, seg_start, seg_end, segment_sec, per_segment, rotatio
             if cancel_event.is_set():
                 break
             best = None
+            # Беремо кілька кадрів у відрізку і вибираємо найрухливіший
             for j in range(per_segment):
                 if cancel_event.is_set():
                     break
@@ -227,6 +222,7 @@ def _run_slice(video_path, seg_start, seg_end, segment_sec, per_segment, rotatio
                 motion = 0.0 if prev_gray is None else vt._motion_percent(prev_gray, gray)
                 prev_gray = gray
                 base = statistics.median(baseline) if baseline else 0.0
+                # Рух мінус фон: хвилі дають малий бал, а справжній рух - великий
                 score = motion - base
                 baseline.append(motion)
                 stats["candidates"] += 1
@@ -244,7 +240,8 @@ def _run_slice(video_path, seg_start, seg_end, segment_sec, per_segment, rotatio
                     frames.append(item)
                     if frame_queue is not None:
                         frame_queue.put(item)
-            stats["segments_done"] += 1  # += на int під GIL достатньо для індикатора
+            # Лічильник для прогресу (GIL робить таке оновлення безпечним)
+            stats["segments_done"] += 1
     finally:
         container.close()
     return frames
@@ -253,9 +250,11 @@ def _run_slice(video_path, seg_start, seg_end, segment_sec, per_segment, rotatio
 def extract_frames_fast(video_path, max_frames=300, progress_callback=None, is_cancelled=None,
                         full_res_dir=None, on_frame_ready=None, frame_count_callback=None,
                         workers=None):
-    """Той самий контракт, що й vt.extract_frames() (колбеки, формат кадрів),
-    але через keyframe-сикання PyAV. Кидає FastPathUnavailable ДО початку
-    видачі кадрів, якщо швидкий шлях не годиться."""
+    """
+    Те саме, що vt.extract_frames(), але через ключові кадри.
+    Кидає FastPathUnavailable до того, як почне віддавати кадри.
+    """
+    # Можна вимкнути цей шлях через змінну оточення
     if os.environ.get("VIDEO_FAST_DISABLE") == "1":
         raise FastPathUnavailable("вимкнено через VIDEO_FAST_DISABLE")
     if not AV_AVAILABLE:
@@ -275,7 +274,7 @@ def extract_frames_fast(video_path, max_frames=300, progress_callback=None, is_c
             raise FastPathUnavailable(
                 f"GOP={'?' if gop_sec is None else f'{gop_sec:.1f}с'} довший за сегмент "
                 f"{segment_sec:.1f}с - keyframe-вибірка дала б дірки")
-        # Швидка перевірка, що сикання+декодування взагалі працює на цьому файлі.
+        # Швидкий тест: чи працює перехід і декодування на цьому файлі
         probe_frame, _ = _grab_near(container, stream, duration * 0.5, 0)
         if probe_frame is None:
             raise FastPathUnavailable("тестове сикання не повернуло кадр")
@@ -286,11 +285,13 @@ def extract_frames_fast(video_path, max_frames=300, progress_callback=None, is_c
     per_segment = FAST_SEEKS_PER_SEGMENT
     total_seeks = max_frames * per_segment
     if workers is None:
+        # Для малої роботи досить одного потоку, інакше беремо кілька
         cpu = os.cpu_count() or 1
         workers = 1 if total_seeks < _FAST_PARALLEL_MIN_SEEKS else max(1, min(FAST_MAX_WORKERS, cpu - 1 if cpu > 2 else cpu))
     workers = max(1, min(workers, max_frames))
     single_thread = workers > 1
 
+    # Межі відрізків для кожного потоку
     bounds = [round(i * max_frames / workers) for i in range(workers + 1)]
     logger.debug(f"[fast] keyframe-нарізка: тривалість={duration:.0f}с сегмент={segment_sec:.1f}с "
                  f"GOP≈{gop_sec:.1f}с seek-ів={total_seeks} воркерів={workers}")
@@ -341,8 +342,9 @@ def extract_frames_fast(video_path, max_frames=300, progress_callback=None, is_c
             raise
 
     frames = sorted((f for part in parts for f in part), key=lambda item: item["timestamp_sec"])
+    # Один і той самий ключовий кадр міг потрапити у два сусідні відрізки, прибираємо дублікати
     unique, last_ts = [], None
-    for item in frames:  # той самий keyframe міг потрапити у два сусідні сегменти
+    for item in frames:
         if last_ts is not None and abs(item["timestamp_sec"] - last_ts) < 1e-3:
             continue
         unique.append(item)
