@@ -10,22 +10,19 @@
 # =============================================================================
 
 """
-app_paths.py
+dnd_tools.py
 
-Шляхи, які однаково працюють і під час розробки (PyCharm), і в зібраній
-програмі (PyInstaller .exe / .app).
+Перевірка файлу, який перетягнули у вікно програми (drag-and-drop).
+Тут немає нічого з інтерфейсу, тому модуль можна тестувати окремо.
 
-Чому це потрібно:
-- У зібраній програмі __file__ вказує всередину пакета (у --onefile це
-  взагалі тимчасова тека, яка видаляється після закриття), а відносні
-  шляхи на кшталт "screenshots" залежать від того, звідки запустили
-  програму (з Finder робоча тека - це "/").
-- Тека установки (Program Files, /Applications) зазвичай недоступна для
-  запису, тож .env, settings.json і screenshots/ треба тримати в теці
-  даних користувача.
+Перевірка йде в два кроки:
+  1) швидко - дивимось на розширення файлу;
+  2) повільніше - пробуємо відкрити файл через OpenCV і прочитати
+     два кадри (див. probe_video() нижче).
 
-Під час розробки (не frozen) усе лишається як було - файли лежать
-поруч зі скриптами, нічого переносити не треба.
+Результат - один із трьох станів (STATUS_*), а не просто True/False.
+Якщо OpenCV не прочитав файл, це ще не означає, що це не відео
+(може бути незвичний кодек). Тому в такому випадку питаємо користувача.
 """
 
 __author__ = "Тимур Каленик (Timur Kalenik)"
@@ -34,103 +31,104 @@ __copyright__ = "© 2026 Тимур Каленик (Timur Kalenik Corporation)"
 __license__ = "Усі права захищено; див. файл LICENSE"
 
 import os
-import shutil
-import sys
 
-APP_NAME = "SmartSurveillanceAI"
+import cv2
 
+from video_tools import CV2_PROBE_TIMEOUT_SEC, run_with_timeout
 
-def is_frozen():
-    """True, якщо програма запущена зі збірки PyInstaller."""
-    return getattr(sys, "frozen", False)
+VIDEO_EXTENSIONS = {
+    ".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v",
+    ".wmv", ".flv", ".mpg", ".mpeg", ".3gp",
+}
 
+STATUS_OK = "ok"                # точно відео, можна брати одразу
+STATUS_NOT_VIDEO = "not_video"  # точно не відео, відхиляємо
+STATUS_UNKNOWN = "unknown"      # не впевнені, питаємо користувача
 
-def resource_path(relative_path):
-    """
-    Шлях до ресурсу, який ЗАПАКОВАНО в збірку (шрифти, іконки - усе, що
-    додано в datas у main.spec). Тільки для читання.
-    """
-    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(base, relative_path)
-
-
-def user_data_dir():
-    """
-    Тека для файлів, які програма ПИШЕ: .env, settings.json, screenshots/.
-
-    - розробка: тека проєкту (як і раніше)
-    - Windows:  %APPDATA%\\SmartSurveillanceAI
-    - macOS:    ~/Library/Application Support/SmartSurveillanceAI
-    """
-    if not is_frozen():
-        return os.path.dirname(os.path.abspath(__file__))
-
-    if sys.platform == "win32":
-        base = os.environ.get("APPDATA") or os.path.expanduser("~")
-    elif sys.platform == "darwin":
-        base = os.path.expanduser("~/Library/Application Support")
-    else:
-        base = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
-
-    path = os.path.join(base, APP_NAME)
-    os.makedirs(path, exist_ok=True)
-    return path
+# Мінімум і максимум кадрів, щоб вважати файл відео.
+# OpenCV може "відкрити" картинку як відео з одним кадром, і лічильник
+# кадрів у такої картинки буває сміттям (наприклад, INT64_MIN).
+# Тому одного прочитаного кадру мало, дивимось ще й на другий кадр і на лічильник.
+_MIN_PLAUSIBLE_FRAME_COUNT = 2
+_MAX_PLAUSIBLE_FRAME_COUNT = 10_000_000
 
 
-def wipe_user_data():
-    """
-    Повністю видаляє теку даних користувача (.env з ключем, settings.json,
-    історія кадрів, скріншоти, логи). Працює ТІЛЬКИ у зібраній програмі:
-    під час розробки ця тека - це сама тека проєкту, і видаляти її не можна.
-    Повертає True, якщо теку видалено.
-    """
-    if not is_frozen():
-        return False
-    shutil.rmtree(user_data_dir(), ignore_errors=True)
-    return True
+def has_video_extension(path):
+    _, ext = os.path.splitext(path)
+    return ext.lower() in VIDEO_EXTENSIONS
 
-def apply_crisp_window_icon(window, ico_path=None):
-    """
-    Windows: ставить чіткі іконки вікна напряму через WinAPI - велику
-    (панель завдань, Alt+Tab) і малу (заголовок вікна). Tk сам бере з .ico
-    лише один розмір і розтягує його, тому на панелі завдань іконка мутна.
-    Викликати з затримкою (after 400+ мс), інакше customtkinter перебʼє її
-    своєю іконкою. Ніколи не кидає виняток.
-    """
-    if sys.platform != "win32":
-        return
+
+def _probe_video_uncapped(path):
+    """Сама перевірка без ліміту часу. Її запускає run_with_timeout(),
+    бо OpenCV на деяких системах (macOS) може зависнути на не-відео файлі,
+    а ця функція викликається в головному потоці Tkinter."""
+    video = None
     try:
-        import ctypes
-        ico_path = ico_path or resource_path(os.path.join("assets", "icon.ico"))
-        if not os.path.isfile(ico_path):
-            return
-        user32 = ctypes.windll.user32
-        window.update_idletasks()
-        hwnd = user32.GetParent(window.winfo_id()) or window.winfo_id()
+        video = cv2.VideoCapture(path)
+        if not video.isOpened():
+            return False
 
-        IMAGE_ICON, LR_LOADFROMFILE, WM_SETICON = 1, 0x10, 0x80
-        ICON_SMALL, ICON_BIG = 0, 1
-        SM_CXSMICON, SM_CXICON = 49, 11
+        ok, _ = video.read()
+        if not ok:
+            return False
 
-        try:
-            dpi = user32.GetDpiForWindow(hwnd)
-            small = user32.GetSystemMetricsForDpi(SM_CXSMICON, dpi)
-            big = user32.GetSystemMetricsForDpi(SM_CXICON, dpi)
-        except Exception:  # noqa: BLE001
-            small = user32.GetSystemMetrics(SM_CXSMICON)
-            big = user32.GetSystemMetrics(SM_CXICON)
+        # Один кадр ще нічого не доводить, читаємо другий
+        ok2, _ = video.read()
+        if ok2:
+            return True
 
-        user32.LoadImageW.restype = ctypes.c_void_p
-        user32.SendMessageW.argtypes = [
-            ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_void_p]
-        big_icon = user32.LoadImageW(None, ico_path, IMAGE_ICON, big, big, LR_LOADFROMFILE)
-        small_icon = user32.LoadImageW(None, ico_path, IMAGE_ICON, small, small, LR_LOADFROMFILE)
-        if big_icon:
-            user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, big_icon)
-        if small_icon:
-            user32.SendMessageW(hwnd, WM_SETICON, ICON_SMALL, small_icon)
-    except Exception as error:  # noqa: BLE001
-        print(f"[diag] не вдалося встановити іконку вікна: {error}")
+        # Другого кадру немає. Дивимось на лічильник кадрів:
+        # у картинки він або 0, або сміття, а не нормальне число
+        frame_count = video.get(cv2.CAP_PROP_FRAME_COUNT)
+        return _MIN_PLAUSIBLE_FRAME_COUNT <= frame_count <= _MAX_PLAUSIBLE_FRAME_COUNT
+    finally:
+        if video is not None:
+            video.release()
 
+
+def probe_video(path):
+    """
+    Пробує відкрити файл через OpenCV і перевірити, що в ньому є кадри.
+
+    Повертає:
+        True  - це точно відео
+        False - OpenCV не зміг прочитати кадри, це схоже на не відео
+        None  - під час перевірки сталась помилка або вона не встигла
+                за CV2_PROBE_TIMEOUT_SEC. Це не означає, що файл поганий,
+                просто перевірити не вдалося.
+    """
+    try:
+        result, timed_out = run_with_timeout(lambda: _probe_video_uncapped(path))
+    except Exception:
+        return None
+    if timed_out:
+        print(f"[diag] probe_video: перевірка файлу не відповіла за {CV2_PROBE_TIMEOUT_SEC:.0f}с: {path}")
+        return None
+    return result
+
+
+def classify_dropped_file(path):
+    """
+    Повертає один зі STATUS_* для шляху, який перетягнули у вікно.
+
+        STATUS_OK        - розширення відео і OpenCV прочитав кадр. Приймаємо.
+        STATUS_NOT_VIDEO - не відео за розширенням і OpenCV не прочитав кадр.
+                           Відхиляємо одразу.
+        STATUS_UNKNOWN   - всі інші випадки (незнайоме розширення, що читається,
+                           або помилка перевірки). Рішення за користувачем.
+
+    Якщо файлу немає на диску, вважаємо його не відео.
+    """
+    if not path or not os.path.isfile(path):
+        return STATUS_NOT_VIDEO
+
+    ext_ok = has_video_extension(path)
+    probe_result = probe_video(path)
+
+    if ext_ok and probe_result is True:
+        return STATUS_OK
+    if not ext_ok and probe_result is False:
+        return STATUS_NOT_VIDEO
+    return STATUS_UNKNOWN
 
 # © 2026 Тимур Каленик (Timur Kalenik Corporation) — timurkalenik950@gmail.com
