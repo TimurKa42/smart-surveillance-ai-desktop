@@ -18,15 +18,10 @@ __email__ = "timurkalenik950@gmail.com"
 __copyright__ = "© 2026 Тимур Каленик (Timur Kalenik Corporation)"
 __license__ = "Усі права захищено; див. файл LICENSE"
 
-# беру джейсон щоб читати і писати файл
 import json
-# беру ос щоб перевіряти чи є файл
 import os
-
-# беру свій модуль епп_пасс щоб знати де лежить папка юзера
 import app_paths
 
-# шлях до файлу, у збірці він у папці даних юзера, у пайчарм поруч зі скриптами
 SETTINGS_PATH = os.path.join(app_paths.user_data_dir(), "settings.json")
 
 # тім: "auto" це як у системі, "light" і "dark" це завжди така тема
@@ -54,7 +49,7 @@ def load_settings():
     if not os.path.exists(SETTINGS_PATH):
         return DEFAULT_SETTINGS.copy()
 
-    # пробую відкрити файл
+    # це спроба відкрити файл
     try:
         f = open(SETTINGS_PATH, "r", encoding="utf-8")
         data = json.load(f)
