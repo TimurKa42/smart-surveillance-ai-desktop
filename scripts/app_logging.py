@@ -12,13 +12,9 @@
 """
 app_logging.py
 
-Налаштування логів. Пишемо все у файл logs/app.log і одночасно в консоль.
-Викликаємо один раз при старті програми (main.py).
+Логи в logs/app.log + консоль. Викликати раз в main.py, не забути!
 
-Як використовувати в модулях:
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info("...")
+В модулях беру logging.getLogger(__name__) і пишу logger.info(...)
 """
 
 __author__ = "Тимур Каленик (Timur Kalenik)"
@@ -36,48 +32,43 @@ LOG_FILE = os.path.join(LOG_DIR, "app.log")
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
-MAX_BYTES = 2 * 1024 * 1024  # розмір одного файлу логів - 2 МБ
-BACKUP_COUNT = 5             # скільки старих файлів зберігаємо (app.log.1 ... app.log.5)
+MAX_BYTES = 2 * 1024 * 1024  # 2 МБ, потім новий файл
+BACKUP_COUNT = 5             # старих файлів 5, далі видаляються
 
-_configured = False
+_configured = False  # флаг щоб не налаштовувати двічі
 
 
 def setup_logging(level=logging.DEBUG, console_level=logging.DEBUG):
-    """
-    Налаштовує кореневий логер. Можна викликати кілька разів,
-    але зробиться це тільки один раз.
-
-    level         - що писати у файл (DEBUG = все, включно з діагностикою).
-    console_level - що показувати в консолі.
-    """
+    # Ф-ція налаштування логів, не забути викликати в main
+    # level - для файлу, console_level - для консолі
     global _configured
     if _configured:
-        return  # вже налаштовано, щоб не було дублів у логах
+        return  # вже робили, дублі не потрібні
     _configured = True
 
     os.makedirs(LOG_DIR, exist_ok=True)
 
     formatter = logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT)
 
-    # Коли файл стає більшим за MAX_BYTES, почнеться новий
+    # Беру RotatingFileHandler, сам робить новий файл
     file_handler = RotatingFileHandler(
         LOG_FILE, maxBytes=MAX_BYTES, backupCount=BACKUP_COUNT, encoding="utf-8"
     )
     file_handler.setLevel(level)
     file_handler.setFormatter(formatter)
 
+    # Ще вивід в консоль
     console_handler = logging.StreamHandler()
     console_handler.setLevel(console_level)
     console_handler.setFormatter(formatter)
 
     root_logger = logging.getLogger()
-    # Беремо найнижчий рівень з двох, інакше частину повідомлень відсіємо
+    # min() щоб нічого не загубилось
     root_logger.setLevel(min(level, console_level))
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
 
-    # Сторонні бібліотеки на DEBUG пишуть дуже багато (кожен HTTP-запит),
-    # тому їх притишуємо, щоб бачити тільки справжні проблеми
+    # urllib3 і PIL спамлять на DEBUG, глушу їх
     for noisy_logger_name in ("urllib3", "PIL"):
         logging.getLogger(noisy_logger_name).setLevel(logging.WARNING)
 
