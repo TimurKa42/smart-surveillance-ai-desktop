@@ -1,5 +1,5 @@
 # =============================================================================
-# Smart Surveillance AI
+# LookBack
 # © 2026 Тимур Каленик (Timur Kalenik Corporation) <timurkalenik950@gmail.com>
 # Автор: Тимур Каленик. Усі права захищено.
 #
@@ -9,19 +9,15 @@
 # авторства заборонені. Повні умови — у файлі LICENSE.
 # =============================================================================
 
-"""
-localization.py
-
-Переклади інтерфейсу. Є два словники: українська (за замовчуванням)
-і англійська. Російської немає.
-
-Як користуватись:
-    loc = Localization("ua")
-    label.configure(text=loc.t("start_analysis"))
-
-Якщо в тексті є {count}, передаємо значення іменованим аргументом:
-    loc.t("status_done", count=5)
-"""
+# localization.py, тут переклади інтерфейсу. є два словники: українська
+# (за замовчуванням) і англійська. російської немає, не забути
+#
+# як користуватись:
+#     loc = Localization("ua")
+#     label.configure(text=loc.t("start_analysis"))
+#
+# якщо в тексті є {count}, передаю значення іменованим аргументом:
+#     loc.t("status_done", count=5)
 
 __author__ = "Тимур Каленик (Timur Kalenik)"
 __email__ = "timurkalenik950@gmail.com"
@@ -35,7 +31,7 @@ DEFAULT_LANGUAGE = LANG_UA
 
 TEXTS = {
     LANG_UA: {
-        "window_title": "Smart Surveillance AI",
+        "window_title": "LookBack",
 
         "choose_video": "Обрати відео",
         "no_file_selected": "Файл не обрано",
@@ -129,7 +125,7 @@ TEXTS = {
         "dnd_unknown_confirm_title": "Не вдалося перевірити файл",
         "dnd_unknown_confirm_message": "Не вдалося перевірити файл. Продовжити на свій ризик?",
 
-        "notification_analysis_complete_title": "Smart Surveillance AI",
+        "notification_analysis_complete_title": "LookBack",
         "notification_analysis_complete_message": (
             "Аналіз завершено — знайдено моментів: {count}"
         ),
@@ -222,9 +218,9 @@ TEXTS = {
         "export_hint": "«Один кадр» зберігає лише відкритий знімок. «Повний звіт» — усі знайдені моменти в одному файлі.",
         "export_pdf_dialog_title": "Зберегти PDF",
 
-        # Текст самого PDF-звіту (його бере pdf_export.py)
-        "pdf_heading_frame": "Smart Surveillance - звіт по кадру",
-        "pdf_heading_report": "Smart Surveillance - звіт ({i}/{n})",
+        # текст самого пдф звіту, його бере пдф експорт, щоб не забути
+        "pdf_heading_frame": "LookBack - звіт по кадру",
+        "pdf_heading_report": "LookBack - звіт ({i}/{n})",
         "pdf_time": "Час у відео: {value}",
         "pdf_moment": "Момент №: {value}",
         "pdf_video": "Відео: {value}",
@@ -273,7 +269,7 @@ TEXTS = {
         "about_credit": "Корпорація Тимур Каленик, 2026",
     },
     LANG_EN: {
-        "window_title": "Smart Surveillance AI",
+        "window_title": "LookBack",
 
         "choose_video": "Choose video",
         "no_file_selected": "No file selected",
@@ -368,7 +364,7 @@ TEXTS = {
         "dnd_unknown_confirm_title": "Couldn't verify the file",
         "dnd_unknown_confirm_message": "Couldn't verify the file. Continue at your own risk?",
 
-        "notification_analysis_complete_title": "Smart Surveillance AI",
+        "notification_analysis_complete_title": "LookBack",
         "notification_analysis_complete_message": (
             "Analysis complete — moments found: {count}"
         ),
@@ -461,9 +457,9 @@ TEXTS = {
         "export_hint": "“Single frame” saves only the open screenshot. “Full report” saves all found moments in one file.",
         "export_pdf_dialog_title": "Save PDF",
 
-        # Text inside the PDF report itself (used by pdf_export.py)
-        "pdf_heading_frame": "Smart Surveillance - frame report",
-        "pdf_heading_report": "Smart Surveillance - report ({i}/{n})",
+        # текст всередині самого пдф звіту, його бере пдф експорт, щоб не забути
+        "pdf_heading_frame": "LookBack - frame report",
+        "pdf_heading_report": "LookBack - report ({i}/{n})",
         "pdf_time": "Video time: {value}",
         "pdf_moment": "Moment #: {value}",
         "pdf_video": "Video: {value}",
@@ -514,8 +510,8 @@ TEXTS = {
 }
 
 
+# клас локалізації, тримає поточну мову і віддає переклад за ключем, не забути його
 class Localization:
-    """Тримає поточну мову і віддає переклад за ключем."""
 
     def __init__(self, language=DEFAULT_LANGUAGE):
         self.language = language if language in TEXTS else DEFAULT_LANGUAGE
@@ -524,13 +520,10 @@ class Localization:
         if language in TEXTS:
             self.language = language
 
+    # ф-ція перекладу, беру текст для поточної мови, не забути її
+    # якщо передано kwargs, підставляю їх в текст через формат
+    # якщо ключа нема, повертаю сам ключ, щоб програма не впала
     def t(self, key, **kwargs):
-        """
-        Повертає переклад для поточної мови.
-
-        Якщо передано kwargs, підставляє їх у текст через format().
-        Якщо ключа немає, повертає сам ключ, щоб програма не впала.
-        """
         text = TEXTS[self.language].get(key, key)
         if kwargs:
             return text.format(**kwargs)
