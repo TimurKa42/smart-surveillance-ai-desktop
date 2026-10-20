@@ -12,7 +12,7 @@
 """
 app_logging.py
 
-Логи в logs/app.log + консоль. Викликати раз в main.py, не забути!
+Логи в logs/app.log + консоль. Викликати раз в main.py, *щоб не забути*!
 
 В модулях беру logging.getLogger(__name__) і пишу logger.info(...)
 """
@@ -35,7 +35,7 @@ DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 MAX_BYTES = 2 * 1024 * 1024  # 2 МБ, потім новий файл
 BACKUP_COUNT = 5             # старих файлів 5, далі видаляються
 
-_configured = False  # флаг щоб не налаштовувати двічі
+_configured = False  # щоб не налаштовувати двічі
 
 
 def setup_logging(level=logging.DEBUG, console_level=logging.DEBUG):
@@ -43,7 +43,7 @@ def setup_logging(level=logging.DEBUG, console_level=logging.DEBUG):
     # level - для файлу, console_level - для консолі
     global _configured
     if _configured:
-        return  # вже робили, дублі не потрібні
+        return  # вже робив, дублі не треба
     _configured = True
 
     os.makedirs(LOG_DIR, exist_ok=True)
@@ -63,7 +63,7 @@ def setup_logging(level=logging.DEBUG, console_level=logging.DEBUG):
     console_handler.setFormatter(formatter)
 
     root_logger = logging.getLogger()
-    # min() щоб нічого не загубилось
+    # min() щоб нічого не загубилось *щоб не забути*
     root_logger.setLevel(min(level, console_level))
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
