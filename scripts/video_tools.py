@@ -1,5 +1,5 @@
 # =============================================================================
-# Smart Surveillance AI
+# LookBack
 # © 2026 Тимур Каленик (Timur Kalenik Corporation) <timurkalenik950@gmail.com>
 # Автор: Тимур Каленик. Усі права захищено.
 #
@@ -12,15 +12,13 @@
 """
 video_tools.py
 
-Нарізка відео на кадри для Gemini і збереження скріншотів знайдених моментів.
+нарізка відео на кадри для джеміні і збереження скріншотів знайдених моментів.
 
-Коротко про ідею:
-1. Беремо кандидатів-кадрів приблизно раз на кілька секунд.
-2. Відео ділимо на однакові відрізки часу і з кожного беремо один
-   найбільш "рухливий" кадр. Так відео покривається рівномірно.
-3. Довге відео ріжемо на шматки і читаємо паралельно, кожен у своєму процесі.
-4. Швидкість залежить від того, чи вміє відео швидко перескакувати
-   на потрібний кадр (seek). Це й перевіряємо.
+ідея коротко, щоб не забути:
+1. беру кандидатів-кадрів приблизно раз на кілька секунд
+2. відео ділю на однакові відрізки часу, з кожного беру один найбільш рухливий кадр
+3. довге відео ріжу на шматки і читаю паралельно, кожен шматок у своєму процесі
+4. швидкість залежить від того, чи вміє відео швидко стрибати на потрібний кадр (сік), це й перевіряю
 """
 
 __author__ = "Тимур Каленик (Timur Kalenik)"
@@ -47,20 +45,20 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# Android: там сикання в OpenCV ненадійне, тому не стрибаємо по кадрах.
+# андроїд: там сік в опенсв ненадійний, тому по кадрах не стрибаю
 _IS_ANDROID = "ANDROID_ARGUMENT" in os.environ
 
-# Скільки процесів-декодерів максимум. Не більше ядер і не більше 8,
-# бо на HDD багато одночасних читачів гальмують один одного.
+# скільки процесів-декодерів максимум: не більше ядер і не більше 8,
+# бо на хдд багато читачів разом гальмують один одного
 PARALLEL_DECODE_WORKERS = min(os.cpu_count() or 4, 8)
 
 
 # ---------------------------------------------------------------------------
-# Один декодер на процес: щоб паралельні слайси не боролись за ядра
+# один декодер на процес, щоб паралельні шматки не билися за ядра
 # ---------------------------------------------------------------------------
-# cv2.VideoCapture через FFmpeg сам використовує кілька ядер. Якщо відкрити
-# кілька таких декодерів одночасно, вони заважають одне одному. Тому на час
-# паралельної роботи кажемо FFmpeg використовувати один потік на декодер.
+# сі-ві-ту відеокептчер через ффмпег сам бере кілька ядер. якщо відкрити
+# кілька таких разом, вони заважають одне одному. тому на час паралельної
+# роботи кажу ффмпегу брати один потік на декодер
 
 _FFMPEG_CAPTURE_OPTIONS_ENV = "OPENCV_FFMPEG_CAPTURE_OPTIONS"
 _ffmpeg_env_lock = threading.Lock()
@@ -68,8 +66,8 @@ _ffmpeg_env_lock = threading.Lock()
 
 @contextlib.contextmanager
 def _single_threaded_ffmpeg_decode():
-    """Поки блок працює, кожен новий декодер FFmpeg має один потік.
-    Після виходу з блоку стару змінну повертаємо назад."""
+    # поки блок працює, кожен новий декодер ффмпег має один потік
+    # на виході стару змінну повертаю назад
     with _ffmpeg_env_lock:
         previous = os.environ.get(_FFMPEG_CAPTURE_OPTIONS_ENV)
         os.environ[_FFMPEG_CAPTURE_OPTIONS_ENV] = "threads;1"
@@ -83,17 +81,17 @@ def _single_threaded_ffmpeg_decode():
 
 
 # ---------------------------------------------------------------------------
-# Таймаут для cv2: на macOS cv2 може зависнути на файлі, що не є відео
+# таймаут для сі-ві-ту: на маку може зависнути на файлі, що не відео
 # ---------------------------------------------------------------------------
-# Головний потік Tkinter викликає перевірку файлу, тому зависання тут
-# "вбиває" вікно. Запускаємо перевірку в окремому потоці з лімітом часу.
-# Потік, що завис, убити не можна, тож він просто лишається фоновим.
+# головний потік ткінтера викликає перевірку файлу, тому зависання тут
+# вбиває вікно. запускаю перевірку в окремому потоці з лімітом часу.
+# завислий потік вбити не можна, він просто лишається фоновим
 
 CV2_PROBE_TIMEOUT_SEC = 8.0
 
 
 def run_with_timeout(func, timeout_sec=CV2_PROBE_TIMEOUT_SEC):
-    """Запускає func у потоці. Повертає (результат, чи_вийшов_час)."""
+    # запускаю ф-цію в потоці, повертаю (результат, чи_вийшов_час)
     result_box = {}
 
     def target():
@@ -114,13 +112,11 @@ def run_with_timeout(func, timeout_sec=CV2_PROBE_TIMEOUT_SEC):
 
 
 def _open_capture(video_path, hw=False, prefer_ffmpeg=False):
-    """Відкриває відео.
-
-    hw=True          - просимо апаратне декодування (якщо не вийде, відкриємо звичайно).
-    prefer_ffmpeg    - просимо саме FFmpeg. Тільки він слухає налаштування
-                       потоків з _single_threaded_ffmpeg_decode().
-    Авто-поворот OpenCV вимикаємо: кут повороту ми крутимо самі.
-    """
+    # відкриваю відео
+    # hw=True - прошу апаратне декодування, якщо не вийде, відкрию звичайно
+    # prefer_ffmpeg - прошу саме ффмпег, тільки він слухає налаштування
+    # потоків з _single_threaded_ffmpeg_decode()
+    # авто-поворот опенсв вимикаю, кут повороту кручу сам
     video = None
     if hw:
         try:
@@ -151,12 +147,12 @@ def _open_capture(video_path, hw=False, prefer_ffmpeg=False):
 
 
 # ---------------------------------------------------------------------------
-# Апаратне декодування: один короткий замір на початку запуску програми
+# апаратне декодування: один короткий замір на початку запуску програми
 # ---------------------------------------------------------------------------
-# Замірюємо, скільки кадрів за секунду дає звичайне декодування і скільки
-# дає апаратне. Апаратне беремо, лише якщо воно швидше хоча б у 1.3 раза.
-# Результат запам'ятовуємо до закриття програми.
-# SMART_SURVEILLANCE_HW_DECODE=1 - завжди вмикати, =0 - завжди вимикати.
+# міряю скільки кадрів за секунду дає звичайне декодування і скільки апаратне.
+# апаратне беру тільки якщо воно швидше хоча б в 1.3 раза.
+# результат пам'ятаю до закриття програми.
+# SMART_SURVEILLANCE_HW_DECODE=1 завжди вмикає, =0 завжди вимикає
 
 _HW_SAMPLE_FRAMES = 45
 _HW_MIN_SPEEDUP = 1.3
@@ -179,7 +175,7 @@ def _hw_decode_is_faster(video_path):
     def frames_per_sec(hw):
         video = _open_capture(video_path, hw=hw)
         try:
-            if not video.isOpened() or not video.grab():  # перший кадр - розігрів
+            if not video.isOpened() or not video.grab():  # перший кадр для розігріву
                 return 0.0
             started = time.time()
             count = 0
@@ -206,21 +202,21 @@ def _hw_decode_is_faster(video_path):
     return _hw_decision
 
 
-# Скільки потоків пише full-res кадри на диск у фоні
+# скільки потоків пишуть повні кадри на диск у фоні
 _FULL_FRAME_SAVE_WORKERS = 4
 
-# Паралельну нарізку вмикаємо тільки для довгих відео.
-# На коротких старт кожного слайсу займає більше часу, ніж дає виграш.
+# паралельну нарізку вмикаю тільки для довгих відео,
+# на коротких старт шматка довший за виграш
 _PARALLEL_MIN_DURATION_SEC = 120.0
 
 
 # ---------------------------------------------------------------------------
-# Запис файлів
+# запис файлів
 # ---------------------------------------------------------------------------
 
 def _write_image(path, frame):
-    """Записує кадр у файл. Підтримує кирилицю в шляху (cv2.imwrite цього не вміє на Windows).
-    Повертає True, якщо файл з'явився на диску."""
+    # пишу кадр у файл, кирилиця в шляху працює (сі-ві-ту імврайт цього не вміє на віндовс)
+    # повертаю True якщо файл з'явився на диску
     try:
         ext = os.path.splitext(path)[1] or ".jpg"
         ok, buffer = cv2.imencode(ext, frame)
@@ -235,11 +231,9 @@ def _write_image(path, frame):
 
 
 def _save_full_frame(full_dir, frame, pool=None):
-    """Зберігає повний кадр у теку кешу і повертає шлях (або None).
-
-    pool - якщо передано, запис іде у фоні. Це дає змогу декодеру
-    читати наступний кадр, поки попередній ще пишеться на диск.
-    """
+    # зберігаю повний кадр у теку кешу і повертаю шлях (або None)
+    # пул, якщо є, пише у фоні, щоб декодер читав наступний кадр
+    # поки попередній ще пишеться на диск
     if not full_dir:
         return None
     path = os.path.join(full_dir, f"{uuid.uuid4().hex}.jpg")
@@ -267,23 +261,23 @@ def _cpu_count():
 
 
 def _decode_worker_count(item_count, min_items_per_worker=1):
-    """Скільки процесів запустити: не більше ліміту, ядер і
-    кількості "порцій" роботи (item_count // min_items_per_worker)."""
+    # скільки процесів запустити: не більше ліміту, ядер
+    # і кількості порцій роботи (item_count // min_items_per_worker)
     if _IS_ANDROID:
         return 1
     return max(1, min(PARALLEL_DECODE_WORKERS, _cpu_count(), item_count // max(1, min_items_per_worker)))
 
 
 # ---------------------------------------------------------------------------
-# Читання MP4 напряму: поворот і точна тривалість
+# читаю мп4 напряму: поворот і точна тривалість
 # ---------------------------------------------------------------------------
-# MP4 - це "коробки" (box). Кожна починається з розміру (4 байти) і назви
-# (4 байти), далі йдуть дані. Коробки можуть містити інші коробки.
-# Нам потрібні: moov -> trak -> tkhd (поворот) і moov -> mvhd (тривалість).
-# OpenCV на Android не вміє читати поворот, тому читаємо самі.
+# мп4 це коробки (бокс). кожна починається з розміру (4 байти) і назви
+# (4 байти), далі дані. коробки можуть містити інші коробки.
+# треба: moov -> trak -> tkhd (поворот) і moov -> mvhd (тривалість).
+# опенсв на андроїд не вміє читати поворот, тому читаю сам
 
 def _read_box_header(file, offset):
-    """Читає заголовок однієї коробки. Повертає (назва, розмір, початок_даних) або None."""
+    # читаю заголовок однієї коробки, повертаю (назва, розмір, початок_даних) або None
     file.seek(offset)
     header = file.read(8)
     if len(header) < 8:
@@ -294,14 +288,14 @@ def _read_box_header(file, offset):
     data_start = offset + 8
 
     if size == 1:
-        # Розмір не влазить у 4 байти - він іде далі, 8 байтів
+        # розмір не влазить в 4 байти, він далі, 8 байтів
         big_size_bytes = file.read(8)
         if len(big_size_bytes) < 8:
             return None
         size = int.from_bytes(big_size_bytes, byteorder="big")
         data_start = offset + 16
     elif size == 0:
-        # Розмір 0 означає "до кінця файлу"
+        # розмір 0 це до кінця файлу
         file.seek(0, 2)
         size = file.tell() - offset
 
@@ -309,8 +303,8 @@ def _read_box_header(file, offset):
 
 
 def _find_box(file, box_type, start, end):
-    """Шукає коробку з назвою box_type серед сусідів у межах [start, end).
-    Повертає (початок_даних, розмір_даних) або None."""
+    # шукаю коробку з назвою box_type серед сусідів в межах [start, end)
+    # повертаю (початок_даних, розмір_даних) або None
     offset = start
     while offset < end:
         header = _read_box_header(file, offset)
@@ -319,19 +313,19 @@ def _find_box(file, box_type, start, end):
 
         box_type_found, box_size, data_start = header
         if box_size <= 0:
-            return None  # биний заголовок, далі йти не можна
+            return None  # битий заголовок, далі йти не можна
 
         data_size = box_size - (data_start - offset)
 
         if box_type_found == box_type:
             return data_start, data_size
 
-        offset += box_size  # йдемо до наступної коробки
+        offset += box_size  # йду до наступної коробки
 
     return None
 
 
-# Матриця повороту: числа у форматі fixed-point 16.16 (1.0 = 0x10000)
+# матриця повороту: числа у форматі фікс-поінт 16.16 (1.0 = 0x10000)
 _ONE = 0x10000
 
 _ROTATION_MATRIX_TO_ANGLE = {
@@ -343,13 +337,13 @@ _ROTATION_MATRIX_TO_ANGLE = {
 
 
 def _matrix_to_angle(a, b, c, d):
-    """Перетворює 4 числа матриці на кут. Невідома матриця -> 0."""
+    # 4 числа матриці перетворюю на кут, невідома матриця -> 0
     return _ROTATION_MATRIX_TO_ANGLE.get((a, b, c, d), 0)
 
 
 def _read_tkhd_fields(file, data_start, data_size):
-    """Читає з tkhd ширину, висоту і матрицю (a, b, c, d).
-    Повертає (ширина, висота, a, b, c, d) або None."""
+    # читаю з ткхд ширину, висоту і матрицю (a, b, c, d)
+    # повертаю (ширина, висота, a, b, c, d) або None
     file.seek(data_start)
     payload = file.read(data_size)
     if len(payload) < 1:
@@ -357,16 +351,16 @@ def _read_tkhd_fields(file, data_start, data_size):
 
     version = payload[0]
 
-    # Розмір полів з датами залежить від версії коробки
+    # розмір полів з датами залежить від версії коробки
     if version == 1:
         time_fields_size = 8 + 8 + 4 + 4 + 8
     else:
         time_fields_size = 4 + 4 + 4 + 4 + 4
 
-    # Після дат однаковий блок на 16 байт
+    # після дат однаковий блок на 16 байт
     fixed_block_size = 8 + 2 + 2 + 2 + 2
 
-    matrix_offset = 4 + time_fields_size + fixed_block_size  # 4 = версія і прапорці
+    matrix_offset = 4 + time_fields_size + fixed_block_size  # 4 це версія і прапорці
     matrix_size = 36                                         # 9 чисел по 4 байти
 
     matrix_end = matrix_offset + matrix_size
@@ -376,7 +370,7 @@ def _read_tkhd_fields(file, data_start, data_size):
         return None
 
     def read_fixed_point(raw_bytes):
-        # Зі знаком: у матриці є -1.0
+        # зі знаком, бо в матриці є -1.0
         return int.from_bytes(raw_bytes, byteorder="big", signed=True)
 
     a = read_fixed_point(payload[matrix_offset: matrix_offset + 4])
@@ -391,7 +385,7 @@ def _read_tkhd_fields(file, data_start, data_size):
 
 
 def read_rotation_from_mp4(video_path):
-    """Кут повороту відео-треку (0, 90, 180 або 270). Якщо щось не так - 0."""
+    # кут повороту відео-треку (0, 90, 180 або 270), якщо щось не так то 0
     try:
         with open(video_path, "rb") as file:
             file.seek(0, 2)
@@ -404,8 +398,8 @@ def read_rotation_from_mp4(video_path):
             moov_start, moov_size = moov_location
             moov_end = moov_start + moov_size
 
-            # Треків може бути кілька (відео, аудіо). Беремо перший,
-            # у якого ширина і висота не нульові - це відео.
+            # треків може бути кілька (відео, аудіо), беру перший
+            # де ширина і висота не нульові, це відео
             offset = moov_start
             while offset < moov_end:
                 trak_location = _find_box(file, b"trak", offset, moov_end)
@@ -432,8 +426,8 @@ def read_rotation_from_mp4(video_path):
 
 
 def _read_mvhd_duration(file, moov_start, moov_end):
-    """Тривалість відео з коробки mvhd. Не залежить від підрахунку кадрів OpenCV,
-    який для деяких файлів занижується."""
+    # тривалість відео з коробки мвхд, не залежить від підрахунку кадрів опенсв
+    # який для деяких файлів занижується
     mvhd_location = _find_box(file, b"mvhd", moov_start, moov_end)
     if mvhd_location is None:
         return None
@@ -461,7 +455,7 @@ def _read_mvhd_duration(file, moov_start, moov_end):
 
 
 def read_duration_from_mp4(video_path):
-    """Точна тривалість відео в секундах. None, якщо прочитати не вдалось."""
+    # точна тривалість відео в секундах, None якщо прочитати не вдалось
     try:
         with open(video_path, "rb") as file:
             file.seek(0, 2)
@@ -478,7 +472,7 @@ def read_duration_from_mp4(video_path):
 
 
 # ---------------------------------------------------------------------------
-# FPS: OpenCV іноді занижує fps рівно в 2-4 рази. Перевіряємо це.
+# фпс: опенсв іноді занижує фпс рівно в 2-4 рази, це перевіряю
 # ---------------------------------------------------------------------------
 
 _FPS_MISMATCH_TOLERANCE = 0.05
@@ -486,7 +480,7 @@ _FPS_MISMATCH_MAX_MULTIPLE = 4
 
 
 def _is_suspicious_mismatch(raw_fps, effective_fps):
-    """True, якщо два fps відрізняються рівно в ціле число разів (2x, 3x, ...)."""
+    # True якщо два фпс відрізняються рівно в ціле число разів (2x, 3x, ...)
     if raw_fps <= 0 or effective_fps <= 0:
         return False
 
@@ -502,8 +496,8 @@ def _is_suspicious_mismatch(raw_fps, effective_fps):
 
 
 def _probe_seek_cost(video, total_frame_count, sample_count=3):
-    """Середній час одного стрибка (seek) по відео, в секундах.
-    None, якщо жоден стрибок не вдався. Після перевірки повертаємо позицію на початок."""
+    # середній час одного стрибка (сік) по відео в секундах
+    # None якщо жоден стрибок не вдався, після перевірки повертаю позицію на початок
     if total_frame_count <= 0:
         return None
 
@@ -524,7 +518,7 @@ def _probe_seek_cost(video, total_frame_count, sample_count=3):
         if success:
             successful += 1
         if elapsed > _SEEK_SLOW_THRESHOLD_SEC * 2:
-            break  # і так видно, що повільно - далі не міряємо
+            break  # і так видно що повільно, далі не міряю
 
     video.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
@@ -534,17 +528,15 @@ def _probe_seek_cost(video, total_frame_count, sample_count=3):
 
 
 def _frame_count_is_trustworthy(video, total_frame_count, duration_sec, raw_fps):
-    """Перевіряє, чи справді в файлі стільки кадрів, скільки каже OpenCV.
-
-    Ставимо позицію трохи ЗА межу, яку дає менший fps. Якщо там є
-    відмінний від граничного кадр - кадри є, лічильник правдивий.
-    Якщо кадру нема або він такий самий, як граничний - лічильник роздутий.
-    """
+    # перевіряю чи справді в файлі стільки кадрів, скільки каже опенсв
+    # ставлю позицію трохи за межу яку дає менший фпс. якщо там є
+    # відмінний від граничного кадр, то кадри є і лічильник правдивий.
+    # якщо кадру нема або він такий самий як граничний, лічильник роздутий
     raw_frame_estimate = int(duration_sec * raw_fps)
     if raw_frame_estimate <= 0 or raw_frame_estimate >= total_frame_count - 1:
         return True
 
-    # Якщо стрибки повільні, цю перевірку довіряти не можна
+    # якщо стрибки повільні, цій перевірці вірити не можна
     seek_cost = _probe_seek_cost(video, total_frame_count)
     if seek_cost is None or seek_cost > _SEEK_SLOW_THRESHOLD_SEC:
         return False
@@ -565,20 +557,20 @@ def _frame_count_is_trustworthy(video, total_frame_count, duration_sec, raw_fps)
     if not ok_boundary or not ok_beyond:
         return False
 
-    # Порівнюємо дуже маленькі копії, щоб не рахувати зайвого
+    # порівнюю дуже маленькі копії, щоб не рахувати зайвого
     small_boundary = cv2.resize(cv2.cvtColor(frame_boundary, cv2.COLOR_BGR2GRAY), (32, 32))
     small_beyond = cv2.resize(cv2.cvtColor(frame_beyond, cv2.COLOR_BGR2GRAY), (32, 32))
     diff = cv2.absdiff(small_boundary, small_beyond)
     return cv2.countNonZero(diff) > 0
 
 
-# Кеш fps і тривалості по файлу. Ключ: шлях, розмір і час зміни.
+# кеш фпс і тривалості по файлу, ключ: шлях, розмір і час зміни
 _resolve_fps_cache = {}
 _RESOLVE_FPS_CACHE_MAX_SIZE = 64
 
-# Кеш замірів (не рішень!) для файлу: скільки коштує seek, швидкість
+# кеш замірів (не рішень!) для файлу: скільки коштує сік, швидкість
 # послідовного читання і чи вигідне апаратне декодування.
-# Рішення про seek перераховуємо щоразу, бо воно залежить від max_frames.
+# рішення про сік рахую щоразу, бо воно залежить від max_frames
 _decode_strategy_cache = {}
 _DECODE_STRATEGY_CACHE_MAX_SIZE = 64
 
@@ -586,7 +578,7 @@ _SEEK_SLOW_THRESHOLD_SEC = 0.15
 
 
 def _resolve_fps_cache_key(video_path):
-    """(шлях, розмір, час зміни). Якщо файлу нема - None."""
+    # (шлях, розмір, час зміни), якщо файлу нема то None
     try:
         stat = os.stat(video_path)
         return (video_path, stat.st_size, stat.st_mtime)
@@ -595,7 +587,7 @@ def _resolve_fps_cache_key(video_path):
 
 
 def _resolve_fps(video, video_path):
-    """Повертає (fps, тривалість, кількість кадрів) з кешем."""
+    # повертаю (фпс, тривалість, кількість кадрів) з кешем
     cache_key = _resolve_fps_cache_key(video_path)
     if cache_key is not None and cache_key in _resolve_fps_cache:
         return _resolve_fps_cache[cache_key]
@@ -609,11 +601,11 @@ def _resolve_fps(video, video_path):
 
 
 def _resolve_fps_uncached(video, video_path):
-    """Повертає (fps, тривалість, кількість кадрів) без кешу."""
+    # повертаю (фпс, тривалість, кількість кадрів) без кешу
     raw_fps = video.get(cv2.CAP_PROP_FPS) or 25.0
 
-    # Для файлу, який не є відео, OpenCV може повернути сміття (INT64_MIN).
-    # Таке значення вважаємо "невідомо" (0).
+    # для файлу що не відео опенсв може повернути сміття (INT64_MIN)
+    # таке значення вважаю невідомим (0)
     raw_total_frame_count = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     total_frame_count = raw_total_frame_count if 0 < raw_total_frame_count < 100_000_000 else 0
 
@@ -622,7 +614,7 @@ def _resolve_fps_uncached(video, video_path):
     if duration_sec and total_frame_count > 0:
         effective_fps = total_frame_count / duration_sec
         if _is_suspicious_mismatch(raw_fps, effective_fps):
-            # Підозра на баг. Але може бути роздутий лічильник кадрів, а не fps.
+            # підозра на баг, але може бути роздутий лічильник кадрів а не фпс
             if not _IS_ANDROID and not _frame_count_is_trustworthy(video, total_frame_count, duration_sec, raw_fps):
                 corrected_total = int(round(duration_sec * raw_fps))
                 logger.debug(
@@ -644,8 +636,8 @@ def _resolve_fps_uncached(video, video_path):
 
 
 def get_video_duration_sec(video_path):
-    """Тривалість відео в секундах. 0.0, якщо невідомо або перевірка зависла.
-    Викликається з головного потоку, тому з таймаутом."""
+    # тривалість відео в секундах, 0.0 якщо невідомо або перевірка зависла
+    # викликається з головного потоку, тому з таймаутом
     def probe():
         video = _open_capture(video_path)
         if not video.isOpened():
@@ -664,12 +656,12 @@ def get_video_duration_sec(video_path):
 
 
 def _prepare_orientation(video_path):
-    """Кут повороту, який треба застосувати до кадру."""
+    # кут повороту який треба застосувати до кадру
     return read_rotation_from_mp4(video_path)
 
 
 def _apply_manual_rotation(frame, angle):
-    # Кут з метаданих означає "повернути за годинниковою стрілкою"
+    # кут з метаданих це повернути за годинниковою стрілкою
     if angle == 90:
         return cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
     if angle == 180:
@@ -697,8 +689,8 @@ def resize_frame(frame, max_width=1024):
 
 
 def _resize_then_rotate(frame, angle, max_width):
-    """Спершу зменшуємо, потім повертаємо. Так швидше.
-    Для 90/270 обмежуємо висоту, бо після повороту ширина стає висотою."""
+    # спершу зменшую, потім повертаю, так швидше
+    # для 90/270 обмежую висоту, бо після повороту ширина стає висотою
     if not angle:
         return resize_frame(frame, max_width=max_width)
 
@@ -710,25 +702,25 @@ def _resize_then_rotate(frame, angle, max_width):
     return _apply_manual_rotation(frame, angle)
 
 
-# Ширина кадру, який іде в Gemini. Повне відео при цьому не зменшується,
-# скріншоти беремо з оригіналу.
+# ширина кадру що йде в джеміні, повне відео не зменшується,
+# скріншоти беру з оригіналу
 GEMINI_FRAME_WIDTH = 1024
 
-# Якість JPEG для Gemini. Модель і так бачить кадр у фіксованому бюджеті
-# токенів, тож висока якість лише робить запит важчим.
+# якість джпег для джеміні: модель і так бачить кадр у фіксованому бюджеті
+# токенів, тож висока якість лише робить запит важчим
 _GEMINI_JPEG_QUALITY = 85
 _GEMINI_JPEG_ENCODE_PARAMS = [cv2.IMWRITE_JPEG_QUALITY, _GEMINI_JPEG_QUALITY]
 
-# Відсоток пікселів, які мають змінитись, щоб вважати це рухом
+# відсоток пікселів що мають змінитись, щоб вважати це рухом
 MOTION_THRESHOLD_PERCENT = 2.0
 
-# Скільки останніх кандидатів беремо для "фонового" рівня руху
+# скільки останніх кандидатів беру для фонового рівня руху
 MOTION_BASELINE_WINDOW = 20
 
-# Кандидатів беремо у 3 рази більше, ніж кадрів у підсумку
+# кандидатів беру в 3 рази більше ніж кадрів у підсумку
 CANDIDATE_OVERSAMPLE = 3
 
-# Для "важкого" відео (HEVC + високий fps) кандидатів беремо рідше
+# для важкого відео (хевс + високий фпс) кандидатів беру рідше
 HEAVY_CODEC_FPS_THRESHOLD = 30
 HEAVY_CODEC_INTERVAL_MULTIPLIER = 2.5
 
@@ -736,7 +728,7 @@ _HEVC_FOURCC_CODES = {"hvc1", "hev1", "HEVC", "H265", "x265"}
 
 
 def _read_fourcc(video):
-    """Назва кодека з відкритого відео (наприклад 'hvc1'). '' - якщо не вдалось."""
+    # назва кодека з відкритого відео (наприклад hvc1), '' якщо не вдалось
     fourcc_int = int(video.get(cv2.CAP_PROP_FOURCC))
     if fourcc_int <= 0:
         return ""
@@ -747,13 +739,13 @@ def _read_fourcc(video):
 
 
 def _is_heavy_video(video, fps):
-    """Важке = HEVC + fps вище порогу. Якщо кодек не визначився - не важке."""
+    # важке це хевс + фпс вище порогу, якщо кодек не визначився то не важке
     fourcc = _read_fourcc(video)
     return fourcc in _HEVC_FOURCC_CODES and fps > HEAVY_CODEC_FPS_THRESHOLD
 
 
 def _motion_percent(prev_gray, current_gray):
-    """Відсоток пікселів, що помітно змінились між двома кадрами (0..100)."""
+    # відсоток пікселів що помітно змінились між двома кадрами (0..100)
     diff = cv2.absdiff(prev_gray, current_gray)
     _, diff_mask = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
 
@@ -763,12 +755,12 @@ def _motion_percent(prev_gray, current_gray):
 
 
 def _has_motion(prev_gray, current_gray, threshold_percent=MOTION_THRESHOLD_PERCENT):
-    """Так/ні: чи є рух. Потрібно лише для режиму без тривалості."""
+    # так/ні чи є рух, потрібно лише для режиму без тривалості
     return _motion_percent(prev_gray, current_gray) >= threshold_percent
 
 
 def _measure_sequential_fps(video, sample_frames=40):
-    """Швидкість послідовного читання (кадрів/с). None - якщо не вдалось."""
+    # швидкість послідовного читання (кадрів/с), None якщо не вдалось
     try:
         video.set(cv2.CAP_PROP_POS_FRAMES, 0)
         if not video.grab():
@@ -787,11 +779,9 @@ def _measure_sequential_fps(video, sample_frames=40):
 
 
 def _iter_candidate_frames(video, interval_frames, total_frame_count, use_seek, state=None):
-    """Віддає (номер_кадру, кадр) для кожного кандидата.
-
-    use_seek=True  - стрибаємо прямо на кандидата. Інші кадри не декодуємо.
-    use_seek=False - читаємо всі кадри підряд (grab), але декодуємо тільки кандидатів.
-    """
+    # віддаю (номер_кадру, кадр) для кожного кандидата
+    # use_seek=True - стрибаю прямо на кандидата, інші кадри не декодую
+    # use_seek=False - читаю всі кадри підряд (грааб), але декодую тільки кандидатів
     if use_seek:
         frame_index = 0
         while frame_index < total_frame_count:
@@ -823,12 +813,10 @@ def _extract_slice_sequential(
     seg_start, seg_end, manual_rotation, cancel_event, progress_out, slice_id, full_dir=None,
     frame_count_out=None, frame_queue=None, use_seek=False,
 ):
-    """Один шматок відео. Виконується в окремому процесі.
-
-    Логіка та сама, що в extract_frames: з кожного відрізка беремо
-    найбільш рухливий кандидат. Різниця в тому, що тут обмеження
-    не глобальні, а тільки для цього шматка.
-    """
+    # один шматок відео, виконується в окремому процесі
+    # логіка та сама що в extract_frames: з кожного відрізка беру
+    # найбільш рухливого кандидата. різниця в тому що обмеження
+    # тут не глобальні, а тільки для цього шматка
     video = _open_capture(video_path, prefer_ffmpeg=True)
     if not video.isOpened():
         return []
@@ -863,7 +851,7 @@ def _extract_slice_sequential(
         span = max(1, end_frame - start_frame)
 
         if use_seek:
-            # Вирівнюємо перший кандидат по загальній сітці, щоб слайси не перекривались
+            # вирівнюю перший кандидат по загальній сітці, щоб шматки не перекривались
             remainder = start_frame % interval_frames
             frame_index = start_frame if remainder == 0 else start_frame + (interval_frames - remainder)
         else:
@@ -918,7 +906,7 @@ def _extract_slice_sequential(
                     break
                 current_segment_index = segment_index
 
-            # Рух щодо попереднього кандидата, а не щодо відібраного кадру
+            # рух відносно попереднього кандидата, а не відібраного кадру
             motion_percent = 0.0 if prev_candidate_gray is None else _motion_percent(prev_candidate_gray, gray)
             prev_candidate_gray = gray
 
@@ -927,7 +915,7 @@ def _extract_slice_sequential(
             motion_baseline.append(motion_percent)
 
             if segment_best is None or score > segment_best["score"]:
-                # copy() потрібен: OpenCV перевикористовує буфер
+                # копі() треба, бо опенсв перевикористовує буфер
                 segment_best = {
                     "score": score,
                     "timestamp_sec": timestamp_sec,
@@ -951,13 +939,11 @@ def _extract_frames_parallel(
     manual_rotation, workers, progress_callback, is_cancelled, full_dir=None,
     frame_count_callback=None, on_frame_ready=None, use_seek=False,
 ):
-    """Паралельна нарізка: відео ділимо на слайси по межах відрізків,
-    кожен слайс читає окремий процес (у потоках GIL заважав би).
-
-    Через межу процесів не можна передати колбеки і спільні списки напряму,
-    тому: cancel_event, progress і лічильники - через Manager, а готові
-    кадри йдуть у чергу. Колбек on_frame_ready викликаємо вже тут.
-    """
+    # паралельна нарізка: відео ділю на шматки по межах відрізків,
+    # кожен шматок читає окремий процес (в потоках гіл заважав би)
+    # через межу процесів колбеки і спільні списки напряму не передати, тому:
+    # cancel_event, прогрес і лічильники йдуть через менеджер,
+    # а готові кадри в чергу. колбек on_frame_ready викликаю вже тут
     bounds = [round(i * max_frames / workers) for i in range(workers + 1)]
     jobs = []
     for i in range(workers):
@@ -976,7 +962,7 @@ def _extract_frames_parallel(
         frame_queue = manager.Queue() if on_frame_ready is not None else None
 
         def _drain_frame_queue():
-            """Забирає готові кадри з черги і віддає їх on_frame_ready."""
+            # забираю готові кадри з черги і віддаю в on_frame_ready
             if frame_queue is None:
                 return
             while True:
@@ -1031,28 +1017,27 @@ def _extract_frames_parallel(
 def extract_frames(video_path, max_frames=300, min_interval_sec=0.5, progress_callback=None, is_cancelled=None,
                    full_res_dir=None, allow_hw=True, on_frame_ready=None, frame_count_callback=None,
                    allow_fast=True):
-    """Нарізає відео на кадри для Gemini.
-
-    Кроки:
-    1. Спершу пробуємо швидкий шлях (video_fast, через ключові кадри).
-    2. Якщо він не підійшов - старий шлях:
-       - точна тривалість і fps (з перевіркою на баг);
-       - кандидати рідко, з відбором по рухові;
-       - seek або послідовне читання - залежно від швидкості стрибків;
-       - для довгих відео - паралельна нарізка в кілька процесів.
-
-    progress_callback(fraction)   - прогрес 0..1
-    is_cancelled()                - True, якщо треба зупинитись
-    full_res_dir                  - тека для повних кадрів (потім скріншоти з неї)
-    on_frame_ready(frame, index)  - викликається, коли кадр готовий (стрімінг у Gemini)
-    frame_count_callback(count)   - скільки кадрів уже є
-    allow_hw                      - чи дозволено апаратне декодування
-    allow_fast                    - чи дозволено швидкий шлях
-    """
+    # нарізаю відео на кадри для джеміні
+    #
+    # кроки, щоб не забути:
+    # 1. спершу пробую швидкий шлях (відео_фаст, через ключові кадри)
+    # 2. якщо не підійшов, йду старим шляхом:
+    #    точна тривалість і фпс (з перевіркою на баг),
+    #    кандидати рідко, відбір по рухові,
+    #    сік або послідовне читання залежно від швидкості стрибків,
+    #    для довгих відео паралельна нарізка в кілька процесів
+    #
+    # progress_callback(fraction) - прогрес 0..1
+    # is_cancelled() - True якщо треба зупинитись
+    # full_res_dir - тека для повних кадрів (потім скріншоти з неї)
+    # on_frame_ready(frame, index) - викликається коли кадр готовий (стрімінг в джеміні)
+    # frame_count_callback(count) - скільки кадрів вже є
+    # allow_hw - чи дозволено апаратне декодування
+    # allow_fast - чи дозволено швидкий шлях
     if allow_fast:
         try:
             from video_fast import extract_frames_fast, FastPathUnavailable
-        except Exception as error:  # noqa: BLE001 - модуля немає, йдемо старим шляхом
+        except Exception as error:  # noqa: BLE001 - модуля немає, йду старим шляхом
             logger.debug(f"[diag] швидкий шлях недоступний: {error}")
         else:
             try:
@@ -1081,7 +1066,7 @@ def extract_frames(video_path, max_frames=300, min_interval_sec=0.5, progress_ca
     interval_frames = max(1, round(interval_sec * fps))
     segment_sec = (duration_sec / max_frames) if duration_sec else None
 
-    # Стрибати чи читати підряд: за замовчуванням стрибаємо (не на Android)
+    # стрибати чи читати підряд: за замовчуванням стрибаю (не на андроїд)
     use_seek = not _IS_ANDROID and total_frame_count > 0
 
     decode_cache_key = _resolve_fps_cache_key(video_path)
@@ -1089,7 +1074,7 @@ def extract_frames(video_path, max_frames=300, min_interval_sec=0.5, progress_ca
         _decode_strategy_cache.get(decode_cache_key) if decode_cache_key is not None else None
     )
 
-    # Перевіряємо, чи стрибки на цьому файлі справді дешеві
+    # перевіряю чи стрибки на цьому файлі справді дешеві
     measured_seek_cost = None
     seq_fps = None
     if cached_measurements is not None:
@@ -1101,8 +1086,8 @@ def extract_frames(video_path, max_frames=300, min_interval_sec=0.5, progress_ca
             seq_fps = _measure_sequential_fps(video)
 
     if use_seek and measured_seek_cost is not None and measured_seek_cost > _SEEK_SLOW_THRESHOLD_SEC:
-        # Стрибок повільний. Порівнюємо, що дешевше загалом:
-        # стрибати на кожного кандидата чи читати весь файл підряд.
+        # стрибок повільний, порівнюю що дешевше загалом:
+        # стрибати на кожного кандидата чи читати весь файл підряд
         candidate_count = math.ceil(total_frame_count / interval_frames)
         seek_total_est = candidate_count * measured_seek_cost
         seq_total_est = (total_frame_count / seq_fps) if seq_fps else None
@@ -1119,7 +1104,7 @@ def extract_frames(video_path, max_frames=300, min_interval_sec=0.5, progress_ca
         f"segment_sec={segment_sec} use_seek={use_seek}"
     )
 
-    # Апаратне декодування - тільки для послідовного читання (не для стрибків)
+    # апаратне декодування тільки для послідовного читання (не для стрибків)
     use_hw = False
     if cached_measurements is not None:
         use_hw = cached_measurements[2]
@@ -1144,8 +1129,8 @@ def extract_frames(video_path, max_frames=300, min_interval_sec=0.5, progress_ca
 
     full_frame_pool = ThreadPoolExecutor(max_workers=_FULL_FRAME_SAVE_WORKERS) if full_res_dir else None
 
-    # Паралельна нарізка для довгих відео (і з seek, і без).
-    # Не можна лише при апаратному декодуванні: перезапуск з нуля дав би дублі.
+    # паралельна нарізка для довгих відео (і з сіком, і без)
+    # не можна тільки при апаратному декодуванні: перезапуск з нуля дав би дублі
     parallel_workers = _decode_worker_count(max_frames, min_items_per_worker=50)
     if (not use_hw and segment_sec and total_frame_count > 0 and parallel_workers > 1
             and duration_sec >= _PARALLEL_MIN_DURATION_SEC):
@@ -1168,7 +1153,7 @@ def extract_frames(video_path, max_frames=300, min_interval_sec=0.5, progress_ca
     segment_best = None
 
     def flush_segment_best():
-        """Забирає найкращий кадр відрізка в підсумок."""
+        # забираю найкращий кадр відрізка в підсумок
         nonlocal segment_best
         if segment_best is not None and len(frames) < max_frames:
             ok, buffer = cv2.imencode(".jpg", segment_best["frame"], _GEMINI_JPEG_ENCODE_PARAMS)
@@ -1222,7 +1207,7 @@ def extract_frames(video_path, max_frames=300, min_interval_sec=0.5, progress_ca
 
         try:
             if segment_sec:
-                # min(...) - захист від похибки округлення на межі останнього відрізка
+                # мін(...) це захист від похибки округлення на межі останнього відрізка
                 segment_index = min(int(timestamp_sec // segment_sec), max_frames - 1)
                 if segment_index != current_segment_index:
                     flush_segment_best()
@@ -1246,7 +1231,7 @@ def extract_frames(video_path, max_frames=300, min_interval_sec=0.5, progress_ca
                         "gray": gray,
                     }
             else:
-                # Тривалість невідома: беремо кадри з рухом, без відрізків
+                # тривалість невідома: беру кадри з рухом, без відрізків
                 is_first_frame = last_kept_gray is None
                 motion_detected = not is_first_frame and _has_motion(last_kept_gray, gray)
                 if is_first_frame or motion_detected:
@@ -1272,7 +1257,7 @@ def extract_frames(video_path, max_frames=300, min_interval_sec=0.5, progress_ca
         f"дістати={candidate_fetch_sec:.1f}с обробити={candidate_process_sec:.1f}с"
     )
 
-    # Апаратний декодер обірвався раніше кінця - результат ненадійний, робимо програмно
+    # апаратний декодер обірвався раніше кінця, результат ненадійний, роблю програмно
     if (use_hw and total_frame_count
             and iter_state["decoded"] < total_frame_count * 0.9
             and not (is_cancelled is not None and is_cancelled())
@@ -1296,7 +1281,7 @@ def extract_frames(video_path, max_frames=300, min_interval_sec=0.5, progress_ca
 
 
 def _notify_frame_ready(on_frame_ready, frame_dict, index):
-    """Викликає колбек. Помилка в ньому не має зупиняти нарізку."""
+    # викликаю колбек, помилка в ньому не має зупиняти нарізку
     if on_frame_ready is None:
         return
     try:
@@ -1306,7 +1291,7 @@ def _notify_frame_ready(on_frame_ready, frame_dict, index):
 
 
 def grab_screenshot(video_path, timestamp_sec, save_path):
-    """Один кадр за часом, в оригінальній якості, для показу в інтерфейсі."""
+    # один кадр за часом, в оригінальній якості, для показу в інтерфейсі
     video = _open_capture(video_path)
     manual_rotation = _prepare_orientation(video_path)
 
@@ -1335,7 +1320,7 @@ def grab_screenshot(video_path, timestamp_sec, save_path):
 
 
 def _grab_screenshot_chunk(video_path, manual_rotation, chunk):
-    """Один процес: свій декодер, свій шматок цілей (відсортованих за часом)."""
+    # один процес: свій декодер, свій шматок цілей (відсортованих за часом)
     video = _open_capture(video_path, prefer_ffmpeg=True)
     saved = set()
     try:
@@ -1353,10 +1338,8 @@ def _grab_screenshot_chunk(video_path, manual_rotation, chunk):
 
 
 class ScreenshotDiskFullError(OSError):
-    """Не вдалось записати частину скріншотів (найчастіше немає місця на диску).
-
-    saved - шляхи, які встигли записатись. Їх не можна втрачати.
-    """
+    # не вдалось записати частину скріншотів (найчастіше нема місця на диску)
+    # saved це шляхи що встигли записатись, їх не можна втрачати
 
     def __init__(self, saved, done_targets, total_targets):
         super().__init__(28, "No space left on device")
@@ -1366,11 +1349,9 @@ class ScreenshotDiskFullError(OSError):
 
 
 def grab_screenshots_batch(video_path, timestamp_and_path_list, progress_callback=None):
-    """Дістає кілька кадрів за один прохід по відео.
-
-    timestamp_and_path_list - список пар (час_сек, шлях_файлу).
-    Повертає set успішно збережених шляхів.
-    """
+    # дістаю кілька кадрів за один прохід по відео
+    # timestamp_and_path_list це список пар (час_сек, шлях_файлу)
+    # повертаю сет успішно збережених шляхів
     video = _open_capture(video_path)
     manual_rotation = _prepare_orientation(video_path)
     fps, _duration_sec, _total_frame_count = _resolve_fps(video, video_path)
@@ -1384,7 +1365,7 @@ def grab_screenshots_batch(video_path, timestamp_and_path_list, progress_callbac
     total_targets = len(targets)
 
     if _IS_ANDROID:
-        # Читаємо підряд, без стрибків
+        # читаю підряд, без стрибків
         frame_index = 0
         disk_full_error = None
         for i, (target_frame_index, save_path) in enumerate(targets):
@@ -1415,7 +1396,7 @@ def grab_screenshots_batch(video_path, timestamp_and_path_list, progress_callbac
     else:
         workers = _decode_worker_count(total_targets, min_items_per_worker=8)
         if workers > 1:
-            # Шматки цілей роздаємо процесам, кожен зі своїм декодером
+            # шматки цілей роздаю процесам, кожен зі своїм декодером
             video.release()
             chunk_count = min(total_targets, workers * 8)
             chunk_size = int(math.ceil(total_targets / chunk_count))
@@ -1428,7 +1409,7 @@ def grab_screenshots_batch(video_path, timestamp_and_path_list, progress_callbac
                     try:
                         chunk_saved, chunk_len = future.result()
                     except OSError as error:
-                        # Одна помилка диска не має зупиняти решту шматків
+                        # одна помилка диска не має зупиняти решту шматків
                         disk_full_error = error
                         continue
                     saved.update(chunk_saved)
