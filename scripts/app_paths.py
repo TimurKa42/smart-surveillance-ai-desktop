@@ -1,5 +1,5 @@
 # =============================================================================
-# Smart Surveillance AI
+# LookBack
 # © 2026 Тимур Каленик (Timur Kalenik Corporation) <timurkalenik950@gmail.com>
 # Автор: Тимур Каленик. Усі права захищено.
 #
@@ -12,12 +12,9 @@
 """
 app_paths.py
 
-Шляхи до файлів, які однаково працюють і в PyCharm, і в зібраній
-програмі (.exe / .app).
-
-У зібраній програмі папка з програмою часто тільки для читання
-(Program Files, /Applications). Тому файли, які програма пише
-(.env, settings.json, screenshots/), зберігаємо в папці даних користувача.
+Шляхи до файлів, щоб працювало і в PyCharm, і в .exe/.app.
+Папка зібраної програми read-only, тому .env, settings.json
+і screenshots/ кидаю в папку даних юзера.
 """
 
 __author__ = "Тимур Каленик (Timur Kalenik)"
@@ -29,38 +26,32 @@ import os
 import shutil
 import sys
 
-APP_NAME = "SmartSurveillanceAI"
+APP_NAME = "LookBack"
 
 
 def is_frozen():
-    """True, якщо програму зібрано в .exe або .app."""
+    # Ф-ція: це .exe/.app чи ні, не забути її
     return getattr(sys, "frozen", False)
 
 
 def resource_path(relative_path):
-    """
-    Шлях до файлу, який вбудований у збірку (іконки, шрифти).
-    Тільки для читання.
-    """
+    # Беру файли зі збірки (іконки, шрифти), тільки читати
     base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base, relative_path)
 
 
 def user_data_dir():
-    """
-    Папка для файлів, які програма пише: .env, settings.json, screenshots/.
-
-    - розробка: папка проєкту
-    - Windows:  %APPDATA%\\SmartSurveillanceAI
-    - macOS:    ~/Library/Application Support/SmartSurveillanceAI
-    """
+    # Папка для .env, settings.json, screenshots/
+    # розробка - папка проєкту
+    # віндовс - %APPDATA%\\LookBack
+    # мак - ~/Library/Application Support/LookBack
     if not is_frozen():
         return os.path.dirname(os.path.abspath(__file__))
 
     if sys.platform == "win32":
         base = os.environ.get("APPDATA") or os.path.expanduser("~")
     elif sys.platform == "darwin":
-        base = os.path.expanduser("~/Library/Application Support")
+        base = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/Library/Application Support")
     else:
         base = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
 
@@ -70,11 +61,9 @@ def user_data_dir():
 
 
 def wipe_user_data():
-    """
-    Видаляє папку даних користувача (ключ, налаштування, історію, скріншоти, логи).
-    Працює тільки в зібраній програмі, щоб випадково не стерти папку проєкту.
-    Повертає True, якщо видалено.
-    """
+    # Ф-ція чистить всі дані юзера (ключ, налаштування, скріни, логи)
+    # Тільки в зібраній програмі, *щоб не стерти свій проєкт!*
+    # True якщо видалили
     if not is_frozen():
         return False
     shutil.rmtree(user_data_dir(), ignore_errors=True)
@@ -82,12 +71,9 @@ def wipe_user_data():
 
 
 def apply_crisp_window_icon(window, ico_path=None):
-    """
-    Ставить чітку іконку вікна у Windows через WinAPI.
-    Tk бере з .ico тільки один розмір, тому на панелі завдань іконка розмита.
-    Викликати із затримкою, бо customtkinter ставить свою іконку.
-    Помилки не кидає.
-    """
+    # Ф-ція ставить чітку іконку, тільки віндовс
+    # Tk бере з .ico один розмір, тому розмито
+    # Викликати із затримкою, customtkinter ставить свою *щоб не забути*
     if sys.platform != "win32":
         return
     try:
@@ -103,20 +89,20 @@ def apply_crisp_window_icon(window, ico_path=None):
         ICON_SMALL, ICON_BIG = 0, 1
         SM_CXSMICON, SM_CXICON = 49, 11
 
-        # Розміри іконок під DPI екрана
+        # Розміри під DPI
         try:
             dpi = user32.GetDpiForWindow(hwnd)
             small = user32.GetSystemMetricsForDpi(SM_CXSMICON, dpi)
             big = user32.GetSystemMetricsForDpi(SM_CXICON, dpi)
         except Exception:  # noqa: BLE001
-            # Старі Windows без функцій з DPI - беремо звичайні розміри
+            # Стара віндовс, беру звичайні розміри
             small = user32.GetSystemMetrics(SM_CXSMICON)
             big = user32.GetSystemMetrics(SM_CXICON)
 
         user32.LoadImageW.restype = ctypes.c_void_p
         user32.SendMessageW.argtypes = [
             ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_void_p]
-        # Велика іконка (панель завдань) і мала (заголовок вікна)
+        # Велика - панель завдань, мала - заголовок
         big_icon = user32.LoadImageW(None, ico_path, IMAGE_ICON, big, big, LR_LOADFROMFILE)
         small_icon = user32.LoadImageW(None, ico_path, IMAGE_ICON, small, small, LR_LOADFROMFILE)
         if big_icon:
