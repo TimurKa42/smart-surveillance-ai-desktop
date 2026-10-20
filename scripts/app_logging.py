@@ -1,5 +1,5 @@
 # =============================================================================
-# Smart Surveillance AI
+# LookBack
 # © 2026 Тимур Каленик (Timur Kalenik Corporation) <timurkalenik950@gmail.com>
 # Автор: Тимур Каленик. Усі права захищено.
 #
