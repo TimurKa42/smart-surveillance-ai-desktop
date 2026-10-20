@@ -1,5 +1,5 @@
 # =============================================================================
-# Smart Surveillance AI
+# LookBack
 # © 2026 Тимур Каленик (Timur Kalenik Corporation) <timurkalenik950@gmail.com>
 # Автор: Тимур Каленик. Усі права захищено.
 #
@@ -12,13 +12,13 @@
 """
 config.py
 
-Ключ Gemini. Є два варіанти:
-1) Вшитий ключ з файлу embedded_key.py (цього файлу немає в репозиторії).
-   Тоді користувачу нічого вводити не треба.
-2) Свій ключ, збережений у файлі .env. Якщо він є, використовується він.
-   Видалив свій ключ - знову працює вшитий.
+ключ джеміні. є два варіанти:
+1) вшитий ключ з файлу embedded_key.py (цього файлу немає в репозиторії).
+   тоді користувачу нічого вводити не треба.
+2) свій ключ, збережений у файлі .env. якщо він є, використовується він.
+   видалив свій ключ - знову працює вшитий.
 
-Файл .env лежить у папці даних (див. app_paths.user_data_dir).
+файл .env лежить у папці даних (див. app_paths.user_data_dir).
 """
 
 __author__ = "Тимур Каленик (Timur Kalenik)"
@@ -32,7 +32,7 @@ import app_paths
 
 ENV_FILENAME = ".env"
 
-# Вшитий ключ. Якщо файлу embedded_key.py нема, буде None - тоді працює тільки свій ключ
+# вшитий ключ. якщо файлу embedded_key.py нема, буде нон - тоді працює тільки свій ключ
 try:
     from embedded_key import EMBEDDED_API_KEY
 except ImportError:
@@ -40,15 +40,15 @@ except ImportError:
 
 
 def get_env_path():
-    """Шлях до файлу .env."""
+    """шлях до файлу .env."""
     return os.path.join(app_paths.user_data_dir(), ENV_FILENAME)
 
 
 def load_custom_key():
     """
-    Повертає свій ключ з .env або None, якщо його нема.
+    повертає свій ключ з .env або нон, якщо його нема.
 
-    .env читаємо самі, без python-dotenv. Формат - один рядок:
+    .env читаємо самі, без пайтон-дотенв. формат - один рядок:
     GEMINI_API_KEY=...
     """
     path = get_env_path()
@@ -70,8 +70,8 @@ def load_custom_key():
 
 def load_api_key():
     """
-    Ключ, який реально використовуємо: спочатку свій, потім вшитий.
-    None, якщо немає жодного.
+    ключ, який реально використовуємо: спочатку свій, потім вшитий.
+    нон, якщо немає жодного.
     """
     key = load_custom_key()
     if key:
@@ -80,29 +80,29 @@ def load_api_key():
 
 
 def is_using_custom_key():
-    """True, якщо є свій ключ."""
+    """тру, якщо є свій ключ."""
     return load_custom_key() is not None
 
 
 def has_embedded_key():
-    """True, якщо ключ вшитий у збірку."""
+    """тру, якщо ключ вшитий у збірку."""
     return bool(EMBEDDED_API_KEY)
 
 
 def save_api_key(key):
-    """Зберігає свій ключ у .env (один рядок)."""
+    """зберігає свій ключ у .env (один рядок)."""
     path = get_env_path()
     with open(path, "w", encoding="utf-8") as f:
         f.write(f"GEMINI_API_KEY={key.strip()}\n")
     try:
-        # Ключ бачить тільки власник файлу
+        # ключ бачить тільки власник файлу
         os.chmod(path, 0o600)
     except OSError:
         pass
 
 
 def clear_api_key():
-    """Видаляє свій ключ (.env). Вшитий ключ лишається."""
+    """видаляє свій ключ (.env). вшитий ключ лишається."""
     path = get_env_path()
     try:
         if os.path.exists(path):
