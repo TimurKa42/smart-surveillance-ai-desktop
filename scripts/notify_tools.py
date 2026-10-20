@@ -1,5 +1,5 @@
 # =============================================================================
-# Smart Surveillance AI
+# LookBack
 # © 2026 Тимур Каленик (Timur Kalenik Corporation) <timurkalenik950@gmail.com>
 # Автор: Тимур Каленик. Усі права захищено.
 #
@@ -9,28 +9,16 @@
 # авторства заборонені. Повні умови — у файлі LICENSE.
 # =============================================================================
 
-"""
-notify_tools.py
-
-Системні (десктопні) сповіщення про завершення аналізу.
-
-macOS (зібраний .app): НАТИВНІ сповіщення через UserNotifications
-(pyobjc). Сповіщення приходить від САМОГО застосунку - з його іконкою
-(icon.icns) і назвою, як у Telegram, а клік по ньому виводить вікно
-програми на передній план (розгортає з Dock, якщо згорнуте).
-Працює лише в зібраному .app: UserNotifications прив'язані до
-bundle-ідентифікатора (com.smartsurveillance.ai у main.spec).
-
-macOS (запуск з PyCharm/терміналу, не .app): запасний варіант через
-osascript - сповіщення приходить від "Редактора скриптів" (так само,
-як було раніше). Це обмеження osascript, а не помилка. Перевіряти
-нативні сповіщення треба у зібраному .app.
-
-Windows / Linux: бібліотека plyer, як і раніше.
-
-notify() ніколи не кидає виняток назовні - відсутність сповіщень не
-має валити програму чи фоновий потік аналізу.
-"""
+# notify_tools.py
+# тут усі сповіщення про завершення аналізу, щоб не забути що де
+# мак (зібраний апп): беру нативні сповіщення через юзернотіфікейшнс (пайобджісі),
+# вони приходять від самої програми з іконкою, клік виводить вікно вперед
+# працює тільки в зібраному аппі, бо прив'язано до бандл-ідентифікатора
+# (com.smartsurveillance.ai у main.spec, не чіпати!)
+# мак (запуск з пайчарма чи термінала): запасний варіант через осаскріпт,
+# відправник буде "Редактор скриптів", це обмеження осаскріпта, не баг
+# віндовс і лінукс: беру плаєр, як і раніше
+# ф-ція notify() не кидає виняток назовні, щоб фоновий потік не падав
 
 __author__ = "Тимур Каленик (Timur Kalenik)"
 __email__ = "timurkalenik950@gmail.com"
@@ -45,12 +33,12 @@ import uuid
 
 _log = logging.getLogger(__name__)
 
-# Єдиний AppUserModelID для Windows. ПОВИНЕН збігатися з AppUserModelID
-# у ярликах installer.iss ([Icons]) - інакше Windows 10/11 може мовчки
-# відкидати тости від незнайомого застосунку.
+# один айді для віндовс, має збігатися з тим, що в ярликах installer.iss,
+# інакше віндовс може мовчки відкидати тости, щоб не забути
 APP_USER_MODEL_ID = "SmartSurveillanceAI.App"
-_APP_DISPLAY_NAME = "Smart Surveillance AI"
+_APP_DISPLAY_NAME = "LookBack"
 
+# пробую взяти плаєр
 try:
     from plyer import notification as _plyer_notification
     _PLYER_IMPORT_OK = True
@@ -59,7 +47,7 @@ except Exception as _plyer_error:  # noqa: BLE001
     _PLYER_IMPORT_OK = False
     _log.warning("plyer недоступний: %s", _plyer_error)
 
-# ---- winotify (лише Windows): справжні тости з нашим AppUserModelID ----
+# вінотіфай тільки для віндовс, справжні тости з нашим айді
 _WINOTIFY_OK = False
 _winotify = None
 if sys.platform == "win32":
@@ -70,8 +58,8 @@ if sys.platform == "win32":
         _log.warning("winotify недоступний: %s", _winotify_error)
 
 
+# ф-ція для айді процесу на віндовс, викликати якомога раніше, не забути її
 def set_windows_app_id():
-    """Прописує AppUserModelID процесу (Windows). Викликати якомога раніше."""
     if sys.platform != "win32":
         return
     try:
@@ -83,7 +71,7 @@ def set_windows_app_id():
 
 set_windows_app_id()
 
-# ---- pyobjc (лише macOS) ----
+# пайобджісі тільки для мака
 _UN_OK = False
 _UN_IMPORT_ERROR = None
 if sys.platform == "darwin":
@@ -97,8 +85,8 @@ if sys.platform == "darwin":
         _UN_IMPORT_ERROR = _error
 
 
+# ф-ція перевіряє чи це зібраний апп, а не пайтон з пайчарма
 def _running_from_app_bundle():
-    """True, якщо процес - це зібраний .app (а не python із PyCharm)."""
     if not getattr(sys, "frozen", False):
         return False
     try:
@@ -108,7 +96,8 @@ def _running_from_app_bundle():
         return False
 
 
-_delegate = None          # тримаємо посилання - інакше делегат зберуть як сміття
+# тримаю посилання на делегат, інакше його збере сміттєзбірник, щоб не забути
+_delegate = None
 _delegate_lock = threading.Lock()
 
 if _UN_OK:
@@ -118,12 +107,13 @@ if _UN_OK:
         except Exception:  # noqa: BLE001
             _protocol = None
 
+        # клас делегата: показує сповіщення навіть коли програма активна
+        # і повертає фокус на вікно по кліку
         class _NotificationDelegate(NSObject, protocols=[_protocol] if _protocol else []):
-            """Показує сповіщення навіть коли застосунок активний і повертає
-            фокус на вікно програми по кліку."""
 
             def userNotificationCenter_willPresentNotification_withCompletionHandler_(
                     self, center, notification, completion_handler):
+                # збираю опції: банер, список і звук
                 options = (
                     getattr(_UN, "UNNotificationPresentationOptionBanner", 16)
                     | getattr(_UN, "UNNotificationPresentationOptionList", 8)
@@ -133,7 +123,7 @@ if _UN_OK:
 
             def userNotificationCenter_didReceiveNotificationResponse_withCompletionHandler_(
                     self, center, response, completion_handler):
-                # колбек приходить з довільного потоку - фокус робимо в головному
+                # колбек приходить з довільного потоку, фокус роблю в головному
                 self.performSelectorOnMainThread_withObject_waitUntilDone_(
                     "focusApp:", None, False)
                 completion_handler()
@@ -142,16 +132,19 @@ if _UN_OK:
                 try:
                     app = NSApplication.sharedApplication()
                     app.unhide_(None)
+                    # розгортаю згорнуті вікна з докa
                     for window in app.windows():
                         if window.isMiniaturized():
                             window.deminiaturize_(None)
                     app.activateIgnoringOtherApps_(True)
                 except Exception as error:  # noqa: BLE001
                     print(f"[diag] не вдалося вивести вікно на передній план: {error}")
-    except Exception as _error:  # noqa: BLE001 - імпорт не має валити програму
+    except Exception as _error:  # noqa: BLE001
+        # імпорт не має валити програму
         _UN_OK = False
         _UN_IMPORT_ERROR = _error
 
+# ф-ція для делегата, ставлю його в центр сповіщень
 def _ensure_delegate(center):
     global _delegate
     with _delegate_lock:
@@ -160,13 +153,13 @@ def _ensure_delegate(center):
         center.setDelegate_(_delegate)
 
 
+# ф-ція нативного сповіщення від імені аппа, True якщо показано
 def _notify_macos_native(title, message):
-    """Нативне сповіщення від імені .app. True - показано; False - ні."""
     with objc.autorelease_pool():
         center = _UN.UNUserNotificationCenter.currentNotificationCenter()
         _ensure_delegate(center)
 
-        # 1) дозвіл (при першому запуску macOS покаже системний запит)
+        # спочатку дозвіл, при першому запуску мак покаже системний запит
         auth_done = threading.Event()
         auth = {"granted": False}
 
@@ -186,10 +179,10 @@ def _notify_macos_native(title, message):
             return False
         if not auth["granted"]:
             print("[diag] сповіщення заборонені: Системні налаштування -> "
-                  "Сповіщення -> Smart Surveillance AI")
+                  "Сповіщення -> LookBack")
             return False
 
-        # 2) саме сповіщення
+        # тепер саме сповіщення: заголовок, текст, звук
         content = _UN.UNMutableNotificationContent.alloc().init()
         content.setTitle_(title)
         content.setBody_(message)
@@ -212,9 +205,9 @@ def _notify_macos_native(title, message):
         return add["ok"]
 
 
+# ф-ція запасного варіанта для запуску не з аппа (пайчарм, термінал),
+# відправником буде "Редактор скриптів", не забути що це обмеження осаскріпта
 def _notify_macos_osascript(title, message):
-    """Запасний варіант для запуску НЕ з .app (PyCharm, термінал).
-    Відправником буде "Редактор скриптів" - обмеження osascript."""
     script = (
         "on run argv\n"
         "display notification (item 2 of argv) with title (item 1 of argv)\n"
@@ -227,16 +220,16 @@ def _notify_macos_osascript(title, message):
     return result.returncode == 0
 
 
+# ф-ція перевіряє чи є хоч якийсь спосіб показати сповіщення
 def is_available():
-    """True, якщо є хоч якийсь спосіб показати сповіщення."""
     if sys.platform == "darwin":
         return True
     return _PLYER_IMPORT_OK or _WINOTIFY_OK
 
 
+# головна ф-ція, показує одне сповіщення, True якщо пішло на показ
+# винятків назовні не кидає, щоб не забути
 def notify(title, message, app_name="", app_icon="", timeout=10):
-    """Показує одне системне сповіщення. True - пішло на показ, False - ні.
-    Жодного винятку назовні не кидає."""
     if sys.platform == "darwin":
         try:
             if _UN_OK and _running_from_app_bundle():
@@ -248,6 +241,7 @@ def notify(title, message, app_name="", app_icon="", timeout=10):
             print(f"[diag] сповіщення macOS не показано: {error}")
             return False
 
+    # на віндовс спочатку пробую вінотіфай
     if sys.platform == "win32" and _WINOTIFY_OK:
         _register_windows_identity()
         try:
@@ -261,6 +255,7 @@ def notify(title, message, app_name="", app_icon="", timeout=10):
             _log.warning("winotify не спрацював, пробую plyer: %s", error)
             print(f"[diag] winotify не спрацював: {error}")
 
+    # якщо не вийшло, беру плаєр
     if not _PLYER_IMPORT_OK:
         return False
     try:
@@ -279,10 +274,10 @@ def notify(title, message, app_name="", app_icon="", timeout=10):
 _identity_registered = False
 
 
+# ф-ція реєструє назву й іконку аппа для віндовс, як у Lightshot,
+# беруться з реєстру HKCU/Software/Classes/AppUserModelId/<ID>
+# без цього віндовс показує сирий айді "SmartSurveillanceAI.App", щоб не забути
 def _register_windows_identity():
-    """Як у Lightshot: назва й іконка застосунку в заголовку тосту беруться
-    з HKCU/Software/Classes/AppUserModelId/<ID>. Без цього Windows
-    показує сирий ID ("SmartSurveillanceAI.App")."""
     global _identity_registered
     if _identity_registered or sys.platform != "win32":
         return
@@ -300,13 +295,13 @@ def _register_windows_identity():
         _log.warning("не вдалося зареєструвати ім'я/іконку застосунку: %s", error)
 
 
+# ф-ція шукає іконку, вінотіфай хоче абсолютний шлях або порожній рядок
 def _windows_icon_path(app_icon=""):
-    """winotify вимагає абсолютний шлях до іконки (або порожній рядок)."""
     import os
     candidates = [app_icon]
     try:
         from app_paths import resource_path
-        # PNG чіткіший за .ico (той дає піксельну картинку в тості)
+        # пнг чіткіший за ico, той дає піксельну картинку в тості
         candidates.append(resource_path("assets/icon_1024.png"))
         candidates.append(resource_path("assets/icon.ico"))
     except Exception:  # noqa: BLE001
