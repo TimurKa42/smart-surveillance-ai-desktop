@@ -1,5 +1,5 @@
 # =============================================================================
-# Smart Surveillance AI
+# LookBack
 # © 2026 Тимур Каленик (Timur Kalenik Corporation) <timurkalenik950@gmail.com>
 # Автор: Тимур Каленик. Усі права захищено.
 #
@@ -9,22 +9,19 @@
 # авторства заборонені. Повні умови — у файлі LICENSE.
 # =============================================================================
 
-"""
-keep_awake.py - два невеликі класи для довгого аналізу.
-
-Чому це потрібно. На тесті з 66-хвилинним відео аналіз затягнувся
-майже на годину. Комп'ютер заснув, і запити до Gemini висіли, поки
-він спав. Тому:
-
-1) KeepAwake - поки триває аналіз, не даємо системі заснути.
-   Екран може гаснути, це не заважає. Але якщо ноутбук закрили
-   кришкою на батареї, він все одно засне, з цим програма нічого
-   не зробить.
-
-2) SuspendWatchdog - лічильник простою. Раз на секунду перевіряє,
-   чи не стрибнув годинник. Якщо стрибнув, значить комп'ютер спав
-   або завис. Цей час віднімаємо, щоб не рахувати його в "часі аналізу".
-"""
+# keep_awake.py, тут два невеликі класи для довгого аналізу
+#
+# чому це треба, щоб не забути: на тесті з 66-хвилинним відео аналіз
+# затягнувся майже на годину. комп'ютер заснув, і запити до Джеміні
+# висіли, поки він спав. тому:
+#
+# 1) KeepAwake, поки триває аналіз, не даю системі заснути.
+#    екран може гаснути, це не заважає. але якщо ноутбук закрили
+#    кришкою на батареї, він все одно засне, з цим програма нічого не зробить
+#
+# 2) SuspendWatchdog, лічильник простою. раз на секунду дивлюсь,
+#    чи не стрибнув годинник. якщо стрибнув, значить комп'ютер спав
+#    або завис. цей час віднімаю, щоб не рахувати його в "часі аналізу"
 
 __author__ = "Тимур Каленик (Timur Kalenik)"
 __email__ = "timurkalenik950@gmail.com"
@@ -39,20 +36,20 @@ import sys
 import threading
 import time
 
-# Прапорці Windows для SetThreadExecutionState
+# прапорці віндовс для сет тред екзекюшн стейт
 _ES_CONTINUOUS = 0x80000000
 _ES_SYSTEM_REQUIRED = 0x00000001
 
 _IS_ANDROID = "ANDROID_ARGUMENT" in os.environ
 
-# Linux: команда, яка тримає блокування сну, поки живий наш процес.
-# Якщо програма впаде, блокування зникне саме (аналог caffeinate -w PID на macOS).
+# лінукс: команда, яка тримає блокування сну, поки живий наш процес
+# якщо програма впаде, блокування зникне саме (як кофеїнейт -w PID на маку)
 _LINUX_WAIT_FOR_PID = 'while kill -0 {pid} 2>/dev/null; do sleep 5; done'
-_LINUX_TAG = "Smart Surveillance AI"
+_LINUX_TAG = "LookBack"
 
 
+# ф-ція списку команд для блокування сну на лінукс, від кращої до гіршої, не забути її
 def _linux_inhibit_commands(pid):
-    """Список команд для блокування сну на Linux, від кращої до гіршої."""
     waiter = ["sh", "-c", _LINUX_WAIT_FOR_PID.format(pid=pid)]
     commands = []
     if shutil.which("systemd-inhibit"):
@@ -69,23 +66,21 @@ def _linux_inhibit_commands(pid):
 
 
 class KeepAwake:
-    """
-    start() - почати блокувати сон, stop() - зняти блокування.
-    Якщо система не підтримує блокування (наприклад, Linux без systemd
-    чи Android без pyjnius), просто пише повідомлення і нічого не робить.
-    На Windows блокування прив'язане до потоку, тому start() і stop()
-    треба викликати з одного потоку (у main.py це фоновий потік аналізу).
-    """
+    # start() почати блокувати сон, stop() зняти блокування
+    # якщо система не підтримує блокування (лінукс без системді
+    # чи андроїд без пайджніус), просто пишу повідомлення і нічого не роблю
+    # на віндовс блокування прив'язане до потоку, тому start() і stop()
+    # треба викликати з одного потоку (в мейн.пай це фоновий потік аналізу), щоб не забути
 
     def __init__(self):
         self._process = None
         self._windows_active = False
-        self._wake_lock = None  # Android PowerManager.WakeLock
+        self._wake_lock = None  # андроїд павер менеджер вейклок
 
     def start(self):
         try:
             if sys.platform == "darwin":
-                # -i: не засинати. -w PID: caffeinate сам закриється разом з нашою програмою
+                # -i не засинати, -w PID: кофеїнейт сам закриється разом з нашою програмою
                 self._process = subprocess.Popen(
                     ["caffeinate", "-i", "-w", str(os.getpid())],
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -101,10 +96,11 @@ class KeepAwake:
         except Exception as error:  # noqa: BLE001 - помилка сну не має зупиняти аналіз
             print(f"[diag] не вдалось увімкнути захист від сну: {error}")
 
+    # ф-ція запуску на лінукс, пробую команди по черзі
     def _start_linux(self):
         for command in _linux_inhibit_commands(os.getpid()):
             try:
-                # start_new_session - щоб при stop() прибрати і команду, і її sh разом
+                # start_new_session щоб при stop() прибрати і команду, і її ш разом
                 process = subprocess.Popen(
                     command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                     start_new_session=True,
@@ -116,26 +112,28 @@ class KeepAwake:
             except subprocess.TimeoutExpired:
                 self._process = process  # працює, блокування тримається
                 return
-            # Завершилась одразу (немає dbus або нема доступу), пробуємо наступну
+            # завершилась одразу (нема дібас або нема доступу), пробую наступну
         print("[diag] Linux: systemd-inhibit/gnome-session-inhibit недоступні - захисту від сну нема")
 
+    # ф-ція запуску на андроїд, не забути її
     def _start_android(self):
         try:
             from jnius import autoclass
         except ImportError:
             print("[diag] Android: pyjnius недоступний - захисту від сну нема")
             return
-        # Для цього потрібен дозвіл WAKE_LOCK у buildozer.spec
+        # для цього треба дозвіл WAKE_LOCK у білдозер спек, щоб не забути
         PythonActivity = autoclass("org.kivy.android.PythonActivity")
         Context = autoclass("android.content.Context")
         PowerManager = autoclass("android.os.PowerManager")
         power_manager = PythonActivity.mActivity.getSystemService(Context.POWER_SERVICE)
-        lock = power_manager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SmartSurveillance:analysis")
+        lock = power_manager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "LookBack:analysis")
         lock.setReferenceCounted(False)
-        # Страховка: lock сам зніметься через 3 години, навіть якщо stop() не викличуть
+        # страховка: вейклок сам зніметься через 3 години, навіть якщо stop() не викличу
         lock.acquire(3 * 60 * 60 * 1000)
         self._wake_lock = lock
 
+    # ф-ція зняття блокування, не забути її викликати
     def stop(self):
         try:
             if self._wake_lock is not None:
@@ -151,7 +149,7 @@ class KeepAwake:
                 else:
                     self._process.terminate()
                 try:
-                    self._process.wait(timeout=1)  # прибираємо процес, щоб не лишився "зомбі"
+                    self._process.wait(timeout=1)  # прибираю процес, щоб не лишився зомбі
                 except subprocess.TimeoutExpired:
                     pass
                 self._process = None
@@ -164,13 +162,11 @@ class KeepAwake:
 
 
 class SuspendWatchdog:
-    """
-    Рахує, скільки секунд програма простояла (сон або зависання).
-
-    Раз на tick_sec секунд дивимось, скільки часу минуло. Якщо різниця
-    більша за tick_sec на threshold_sec і більше, додаємо її до
-    suspended_sec. Дрібні стрибки годинника ігноруємо.
-    """
+    # рахую скільки секунд програма простояла (сон або зависання)
+    #
+    # раз на tick_sec секунд дивлюсь скільки часу минуло. якщо різниця
+    # більша за tick_sec на threshold_sec і більше, додаю її до
+    # suspended_sec. дрібні стрибки годинника ігнорую
 
     def __init__(self, tick_sec=1.0, threshold_sec=5.0, clock=time.time):
         self._tick_sec = tick_sec
@@ -189,6 +185,7 @@ class SuspendWatchdog:
         if self._thread is not None:
             self._thread.join(timeout=self._tick_sec * 3)
 
+    # ф-ція самого лічильника, тут крутиться цикл, не забути її
     def _run(self):
         last = self._clock()
         while not self._stop_event.wait(self._tick_sec):
