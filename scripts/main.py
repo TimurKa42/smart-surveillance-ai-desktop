@@ -1,5 +1,5 @@
 # =============================================================================
-# Smart Surveillance AI
+# LookBack
 # © 2026 Тимур Каленик (Timur Kalenik Corporation) <timurkalenik950@gmail.com>
 # Автор: Тимур Каленик. Усі права захищено.
 #
@@ -9,21 +9,17 @@
 # авторства заборонені. Повні умови — у файлі LICENSE.
 # =============================================================================
 
-"""
-main.py
-
-Головний файл з вікном програми (CustomTkinter).
-
-Як користуватись:
-1) обираєте відео (кнопкою або перетягуванням)
-2) пишете, кого або що шукати
-3) обираєте тип аналізу: «Швидкий» або «Детально»
-4) натискаєте «Почати аналіз»
-5) дивитеся звіт: зліва список моментів, справа фото
-
-Важка робота (нарізка відео і запити до Gemini) йде в video_tools.py
-і gemini_tools.py. Тут тільки інтерфейс.
-"""
+# main.py, тут головний файл з вікном програми (кастомтікінтер)
+#
+# як користуватись, щоб не забути:
+# 1) обираю відео (кнопкою або перетягуванням)
+# 2) пишу, кого або що шукати
+# 3) обираю тип аналізу: «Швидкий» або «Детально»
+# 4) натискаю «Почати аналіз»
+# 5) дивлюсь звіт: зліва список моментів, справа фото
+#
+# важка робота (нарізка відео і запити до джемині) іде в video_tools.py
+# і gemini_tools.py. тут тільки інтерфейс
 
 __author__ = "Тимур Каленик (Timur Kalenik)"
 __email__ = "timurkalenik950@gmail.com"
@@ -47,8 +43,8 @@ from PIL import Image, ImageTk
 
 import app_paths
 
-# Збірка .app з Finder стартує з робочої теки "/", де писати не можна.
-# Переходимо в теку даних користувача, щоб logs/, .env і settings.json працювали.
+# збірка апп з файндера стартує з робочої теки "/", де писати не можна
+# переходжу в теку даних користувача, щоб logs/, .env і settings.json працювали
 if app_paths.is_frozen():
     os.chdir(app_paths.user_data_dir())
 
@@ -79,7 +75,7 @@ from localization import Localization
 from keep_awake import KeepAwake, SuspendWatchdog
 from settings_store import load_settings, save_settings, SETTINGS_PATH
 
-# drag-and-drop файлів з ОС. Якщо бібліотеки нема - програма працює без нього.
+# дрег енд дроп файлів з ос. якщо бібліотеки нема, програма працює без нього
 try:
     from tkinterdnd2 import DND_FILES, TkinterDnD
     _DND_IMPORT_OK = True
@@ -88,12 +84,12 @@ except ImportError:
     TkinterDnD = None
     _DND_IMPORT_OK = False
 
-# Беремо DnDWrapper, а не TkinterDnD.Tk: Tk уже є в базовому класі CTk,
-# і два Tk дали б конфлікт.
+# беру ДнДврапер, а не ТкінтерДнД.Тк: Тк уже є в базовому класі ЦТК,
+# і два Тк дали б конфлікт
 _APP_BASE_CLASSES = (ctk.CTk, TkinterDnD.DnDWrapper) if _DND_IMPORT_OK else (ctk.CTk,)
 
-# Код помилки з gemini_tools -> ключ тексту для статусу.
-# "unknown" сюди не входить, для нього показуємо сам текст помилки.
+# код помилки з gemini_tools, на ключ тексту для статусу
+# "unknown" сюди не входить, для нього показую сам текст помилки
 GEMINI_ERROR_STATUS_KEYS = {
     "network": "status_error_network",
     "timeout": "status_error_timeout",
@@ -104,26 +100,26 @@ GEMINI_ERROR_STATUS_KEYS = {
     "blocked": "status_error_blocked",
 }
 
-# Сторінка, де бере безкоштовний ключ Gemini
+# сторінка, де беру безкоштовний ключ джемині
 API_KEY_URL = "https://aistudio.google.com/apikey"
 
-# Прогрес-бар плавно доганяє ціль: кожні 30 мс рухається на 18% різниці
+# прогрес-бар плавно доганяє ціль: кожні 30 мс рухається на 18% різниці
 PROGRESS_ANIM_INTERVAL_MS = 30
 PROGRESS_ANIM_SPEED = 0.18
 
-# Скільки секунд після 100% показувати капсулу прогресу
+# скільки секунд після 100% показую капсулу прогресу
 PROGRESS_HOLD_AT_100_MS = 3000
 
-# Зелений колір прогрес-бару (однаковий у світлій і темній темі)
+# зелений колір прогрес-бару (однаковий у світлій і темній темі)
 PROGRESS_BAR_COLOR = "#33C761"
 
-# Максимум символів у полі запиту
+# максимум символів у полі запиту
 MAX_PROMPT_CHARS = 200
 
-# Тексти, яких немає в localization.py. Підмішуються через _install_extra_strings.
+# тексти, яких нема в localization.py, підмішую через _install_extra_strings, щоб не забути
 EXTRA_STRINGS = {
     "ua": {
-        "welcome_title": "Вітаємо у Smart Surveillance AI!",
+        "welcome_title": "Вітаємо у LookBack!",
         "welcome_text": (
             "Програма знаходить людей і об'єкти на відео за вашим описом "
             "та показує знайдені моменти зі скріншотами."
@@ -150,7 +146,7 @@ EXTRA_STRINGS = {
         ),
     },
     "en": {
-        "welcome_title": "Welcome to Smart Surveillance AI!",
+        "welcome_title": "Welcome to LookBack!",
         "welcome_text": (
             "The app finds people and objects in a video from your description "
             "and shows the moments it found with screenshots."
@@ -177,16 +173,16 @@ EXTRA_STRINGS = {
     },
 }
 
-# Ширина колонки часу в списку звіту
+# ширина колонки часу в списку звіту
 REPORT_TIME_COL_WIDTH = 66
 REPORT_ROW_HOVER_COLOR = "#144870"
 
-# Тека для скріншотів
+# тека для скріншотів
 SCREENSHOTS_FOLDER = os.path.join(app_paths.user_data_dir(), "screenshots")
 
 
-# ---------- Іконка вікон (тільки Windows) ----------
-# customtkinter ставить свою іконку в кожне вікно. Підміняємо її на нашу.
+# ---------- іконка вікон (тільки віндовс) ----------
+# кастомтікінтер ставить свою іконку в кожне вікно, підміняю її на нашу
 def _find_app_icon():
     if not sys.platform.startswith("win"):
         return None
@@ -208,20 +204,20 @@ if APP_ICON_PATH:
     ctk.CTkToplevel._windows_set_titlebar_icon = _set_own_titlebar_icon
     ctk.CTk._windows_set_titlebar_icon = _set_own_titlebar_icon
 
-# Максимум довжини відео: 70 хвилин
+# максимум довжини відео: 70 хвилин
 MAX_VIDEO_DURATION_SEC = 70 * 60
 
-# Усі режими використовують одну модель. Вона дешева і має багато запитів на добу.
+# усі режими беруть одну модель, вона дешева і має багато запитів на добу
 ANALYSIS_MODEL_NAME = "gemini-3.5-flash-lite"
 
-# Режим «Швидкий»: 200 кадрів (5 запитів по 40), найслабше "мислення", низька роздільність
+# режим «Швидкий»: 200 кадрів (5 запитів по 40), найслабше "мислення", низька роздільність
 FAST_MODE_FRAMES = 200
 FAST_MODE_THINKING_LEVEL = "minimal"
 FAST_MODE_MEDIA_RESOLUTION = "MEDIA_RESOLUTION_LOW"
 
-# Режим «Детально»: 4 рівні слайдера.
+# режим «Детально»: 4 рівні слайдера
 # (ключ назви, thinkingLevel, кількість кадрів, mediaResolution)
-# Кількості кратні 40, щоб не було маленького останнього запиту.
+# кількості кратні 40, щоб не було маленького останнього запиту
 DETAIL_LEVELS = [
     ("detail_level_weak", "minimal", 400, "MEDIA_RESOLUTION_LOW"),
     ("detail_level_medium", "low", 800, "MEDIA_RESOLUTION_LOW"),
@@ -232,18 +228,18 @@ DEFAULT_DETAIL_LEVEL_INDEX = 1  # «Середній», 800 кадрів
 
 BUTTON_COLOR = "#1F6AA5"
 
-# Кольори кнопок: (світла тема, темна тема)
+# кольори кнопок: (світла тема, темна тема)
 BUTTON_COLOR_SELECTED = ("#2E86DE", "#123A5C")
 MODEL_NEUTRAL_COLOR = ("#C4CDD6", "gray30")
 TEXT_COLOR_SELECTED = "white"
 TEXT_COLOR_NEUTRAL = ("gray10", "gray90")
 
-# Кольори статусів. Тільки кортежі, інакше колір не зміниться при зміні теми.
+# кольори статусів, тільки кортежі, інакше колір не зміниться при зміні теми
 STATUS_COLOR_NEUTRAL = ("gray45", "gray65")
 STATUS_COLOR_ERROR = ("#C0392B", "#FF6B60")
 WARNING_COLOR = ("#B8860B", "#F5C242")
 
-# Режими аналізу
+# режими аналізу
 MODE_FAST = "fast"
 MODE_DETAIL = "detail"
 MODEL_OPTIONS = [
@@ -251,7 +247,7 @@ MODEL_OPTIONS = [
     ("model_detail_label", MODE_DETAIL),
 ]
 
-# Теми: ключ у settings.json -> значення для customtkinter
+# теми: ключ у settings.json, на значення для кастомтікінтер
 THEME_MODES = {
     "auto": "System",
     "light": "Light",
@@ -268,8 +264,8 @@ LANGUAGE_OPTIONS = [
     ("en", "EN"),
 ]
 
-# Тип ключа Gemini: безкоштовний чи платний. Обирає користувач у меню.
-# Від цього залежить, скільки потоків можна запускати одночасно.
+# тип ключа джемині: безкоштовний чи платний, обирає користувач у меню
+# від цього залежить, скільки потоків можна запускати одночасно
 API_TIER_OPTIONS = [
     ("free", "api_tier_free"),
     ("paid", "api_tier_paid"),
@@ -281,13 +277,13 @@ RESIZE_DEBOUNCE_MS = 60
 LIGHTBOX_PADDING = 40
 LIGHTBOX_BG_COLOR = "#1a1a1a"
 
-# Кроки масштабу у перегляді фото: від 100% до 500%
+# кроки масштабу у перегляді фото: від 100% до 500%
 ZOOM_LEVELS = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
 
 MENU_BUTTON_COLOR = "#ED8221"
 MENU_BUTTON_HOVER_COLOR = "#FF9E4D"
 
-# Червоний для небезпечних дій (видалення)
+# червоний для небезпечних дій (видалення)
 DANGER_COLOR = "#C0392B"
 DANGER_HOVER_COLOR = "#A93226"
 
@@ -295,11 +291,10 @@ SETTINGS_BUTTON_COLOR = "#7B2D3B"
 SETTINGS_BUTTON_HOVER_COLOR = "#642230"
 
 
+# ф-ція патча для скролбара текстбокса, не забути її
+# інколи кастомтікінтер викликає перевірку скролбара вже після того,
+# як віджет знищено, тоді падає ТклЕррор. ловлю її і виходжу тихо
 def _patch_ctk_textbox_scrollbar_check():
-    """
-    Інколи customtkinter викликає перевірку скролбара вже після того,
-    як віджет знищено. Тоді падає TclError. Ловимо її і виходимо тихо.
-    """
     original = getattr(ctk.CTkTextbox, "_check_if_scrollbars_needed", None)
     if original is None or getattr(original, "_is_safe_wrapper", False):
         return
@@ -325,9 +320,9 @@ class App(*_APP_BASE_CLASSES):
         self._wipe_on_exit = False  # видалити дані після закриття (кнопка «Видалити всі дані»)
         self._closing = False
 
-        # ---- Налаштування з settings.json ----
+        # ---- налаштування з settings.json ----
         self.settings = load_settings()
-        # Старі файли налаштувань можуть не мати поля api_tier
+        # старі файли налаштувань можуть не мати поля api_tier
         self.settings.setdefault("api_tier", DEFAULT_API_TIER)
         if self.settings["api_tier"] not in VALID_API_TIERS:
             self.settings["api_tier"] = None
@@ -344,7 +339,7 @@ class App(*_APP_BASE_CLASSES):
                 self.iconbitmap(APP_ICON_PATH)
             except Exception:  # noqa: BLE001
                 pass
-            # Ставимо іконку ще раз із затримкою, бо customtkinter її перебиває
+            # ставлю іконку ще раз із затримкою, бо кастомтікінтер її перебиває
             self.after(400, lambda: app_paths.apply_crisp_window_icon(self, APP_ICON_PATH))
             self.after(1500, lambda: app_paths.apply_crisp_window_icon(self, APP_ICON_PATH))
 
@@ -353,7 +348,7 @@ class App(*_APP_BASE_CLASSES):
         self.current_pil_image = None   # оригінал відкритого фото
         self.current_result = None      # момент, який зараз показано
 
-        # Прапорець «Зупинити». Фоновий потік його перевіряє.
+        # прапорець «Зупинити», фоновий потік його перевіряє
         self._cancel_event = threading.Event()
         self._analysis_running = False
 
@@ -363,15 +358,15 @@ class App(*_APP_BASE_CLASSES):
         self.language_buttons = []      # (кнопка, код мови)
         self.api_tier_buttons = []      # (кнопка, ключ типу)
 
-        # ---- Рівень деталізації ----
+        # ---- рівень деталізації ----
         self.remember_detail_level = self.settings.get("remember_detail_level", False)
         if self.remember_detail_level:
             self.detail_level_index = self.settings.get("detail_level_index", DEFAULT_DETAIL_LEVEL_INDEX)
         else:
             self.detail_level_index = DEFAULT_DETAIL_LEVEL_INDEX
 
-        # Вікна меню, налаштувань, історії. Створюються щоразу заново,
-        # тому посилання тримаємо тут, щоб перемалювати їх при зміні мови.
+        # вікна меню, налаштувань, історії створюються щоразу заново,
+        # тому посилання тримаю тут, щоб перемалювати їх при зміні мови
         self._menu_dialog = None
         self._menu_title_label = None
         self._menu_about_btn = None
@@ -424,7 +419,7 @@ class App(*_APP_BASE_CLASSES):
         self._history_frame_select_all_chk = None
         self._history_session_export_btn = None
 
-        # Статус запам'ятовуємо як ключ + параметри, щоб перемалювати при зміні мови
+        # статус запам'ятовую як ключ + параметри, щоб перемалювати при зміні мови
         self._status_key = None
         self._status_kwargs = {}
         self._status_color = STATUS_COLOR_NEUTRAL
@@ -434,16 +429,16 @@ class App(*_APP_BASE_CLASSES):
 
         self._resize_job = None
 
-        # ---- Капсула прогресу ----
+        # ---- капсула прогресу ----
         self.progress_frame = None
         self.progress_bar = None
         self.progress_percent_label = None
-        self._progress_target = 0           # куди йдемо
+        self._progress_target = 0           # куди йду
         self._progress_displayed = 0.0      # що намальовано зараз
         self._progress_anim_job = None
         self._progress_hide_job = None
 
-        # ---- Повноекранний перегляд ----
+        # ---- повноекранний перегляд ----
         self.lightbox_frame = None
         self.lightbox_canvas = None
         self.lightbox_photo = None
@@ -462,17 +457,17 @@ class App(*_APP_BASE_CLASSES):
         self.prompt_box.bind("<Return>", self._on_prompt_enter)
         self.prompt_box.bind("<Shift-Return>", lambda e: None)
 
-        # Стрілки гортають звіт, якщо фокус не в полі запиту
+        # стрілки гортають звіт, якщо фокус не в полі запиту
         self.bind("<Left>", lambda e: self._navigate_report(-1))
         self.bind("<Up>", lambda e: self._navigate_report(-1))
         self.bind("<Right>", lambda e: self._navigate_report(1))
         self.bind("<Down>", lambda e: self._navigate_report(1))
 
-        # Спершу зупиняємо mainloop, потім знищуємо вікно.
-        # Інакше фонові колбеки customtkinter падають на мертвому вікні.
+        # спершу зупиняю мейнлуп, потім знищую вікно
+        # інакше фонові колбеки кастомтікінтер падають на мертвому вікні
         self.protocol("WM_DELETE_WINDOW", self._on_close_window)
 
-        # Перевірка ключа з затримкою, щоб вікно встигло намалюватись
+        # перевірка ключа з затримкою, щоб вікно встигло намалюватись
         self.after(150, self._on_start)
 
     def _on_close_window(self):
@@ -481,13 +476,13 @@ class App(*_APP_BASE_CLASSES):
         self.quit()
 
     def report_callback_exception(self, exc, val, tb):
-        # Під час закриття TclError - нормально, його не друкуємо
+        # під час закриття ТклЕррор це нормально, його не друкую
         if getattr(self, "_closing", False) and isinstance(val, tk.TclError):
             return
         super().report_callback_exception(exc, val, tb)
 
+    # ф-ція shutdown, скасовує всі відкладені таймери і знищує вікно, не забути її
     def shutdown(self):
-        """Скасовує всі відкладені таймери і знищує вікно."""
         self._closing = True
         self._cancel_event.set()
         try:
@@ -506,8 +501,8 @@ class App(*_APP_BASE_CLASSES):
         if self._wipe_on_exit:
             self._wipe_data_now()
 
+    # ф-ція додає тексти з EXTRA_STRINGS до self.loc.t()
     def _install_extra_strings(self):
-        """Додає тексти з EXTRA_STRINGS до self.loc.t()."""
         original_t = self.loc.t
 
         def t(key, **kwargs):
@@ -519,7 +514,7 @@ class App(*_APP_BASE_CLASSES):
         self.loc.t = t
 
     def _on_start(self):
-        # Вітання показуємо один раз, потім перевіряємо ключ
+        # вітання показую один раз, потім перевіряю ключ
         if self.settings.get("welcome_shown"):
             self._ensure_api_key()
         else:
@@ -536,7 +531,7 @@ class App(*_APP_BASE_CLASSES):
 
         dialog.protocol("WM_DELETE_WINDOW", on_close)
 
-        # Кнопку пакуємо першою, щоб вона завжди була видна
+        # кнопку пакую першою, щоб вона завжди була видна
         ctk.CTkButton(
             dialog, text=self.loc.t("dialog_understood"), command=on_close
         ).pack(side="bottom", pady=(0, 24))
@@ -562,7 +557,7 @@ class App(*_APP_BASE_CLASSES):
         ).pack(fill="x", padx=26, pady=(16, 0))
 
     def _ensure_api_key(self):
-        # Якщо ключа немає, відкриваємо вікно для його введення
+        # якщо ключа нема, відкриваю вікно для його введення
         if not config.load_api_key():
             self._open_api_key_dialog(is_first_setup=True)
 
@@ -572,7 +567,7 @@ class App(*_APP_BASE_CLASSES):
         self.font_report_time_big = ctk.CTkFont(size=16, weight="bold")
         self.font_report_text_big = ctk.CTkFont(size=16)
 
-        # ---------- Верх: тільки кнопка «Меню» ----------
+        # ---------- верх, тільки кнопка «Меню» ----------
         top_bar = ctk.CTkFrame(self, fg_color="transparent")
         top_bar.pack(fill="x", padx=15, pady=(15, 0))
 
@@ -587,7 +582,7 @@ class App(*_APP_BASE_CLASSES):
         )
         self.menu_button.pack(side="left")
 
-        # ---------- Вибір відео ----------
+        # ---------- вибір відео ----------
         top_frame = ctk.CTkFrame(self)
         top_frame.pack(fill="x", padx=15, pady=(10, 5))
 
@@ -599,7 +594,7 @@ class App(*_APP_BASE_CLASSES):
         self.file_label = ctk.CTkLabel(top_frame, text=self.loc.t("no_file_selected"))
         self.file_label.pack(side="left", padx=10)
 
-        # ---------- Поле запиту ----------
+        # ---------- поле запиту ----------
         prompt_header = ctk.CTkFrame(self, fg_color="transparent")
         prompt_header.pack(fill="x", padx=15, pady=(10, 0))
 
@@ -614,12 +609,12 @@ class App(*_APP_BASE_CLASSES):
         self.prompt_box = ctk.CTkTextbox(self, height=80)
         self.prompt_box.pack(fill="x", padx=15, pady=5)
         self.prompt_box.bind("<KeyRelease>", self.update_char_count)
-        # Обрізаємо текст, який довший за ліміт (вставка, друк)
+        # обрізаю текст, який довший за ліміт (вставка, друк)
         self.prompt_box._textbox.bind("<<Modified>>", self._on_prompt_modified, add="+")
         self._bind_clipboard_shortcuts(self.prompt_box)
 
-        # ---------- Кнопка старту або зупинки ----------
-        # Видима тільки одна з двох: «Почати» або «Зупинити»
+        # ---------- кнопка старту або зупинки ----------
+        # видима тільки одна з двох: «Почати» або «Зупинити»
         submit_row = ctk.CTkFrame(self, fg_color="transparent")
         submit_row.pack(pady=10)
 
@@ -635,16 +630,16 @@ class App(*_APP_BASE_CLASSES):
             hover_color=DANGER_HOVER_COLOR,
             command=self.stop_analysis,
         )
-        # Не пакуємо: з'явиться під час аналізу
+        # не пакую, з'явиться під час аналізу
 
-        # ---------- Статус ліворуч, режим праворуч ----------
+        # ---------- статус ліворуч, режим праворуч ----------
         status_row = ctk.CTkFrame(self, fg_color="transparent")
         status_row.pack(fill="x", padx=15)
 
         self.status_label = ctk.CTkLabel(status_row, text="")
         self.status_label.pack(side="left")
 
-        # Прогрес, спочатку схований
+        # прогрес, спочатку схований
         self.progress_frame = ctk.CTkFrame(status_row, fg_color="transparent")
 
         self.progress_bar = ctk.CTkProgressBar(
@@ -685,7 +680,7 @@ class App(*_APP_BASE_CLASSES):
             btn.pack(side="left", padx=3)
             self.model_buttons.append((btn, mode, label_key))
 
-        # Кнопка «Налаштування» є тільки для режиму «Детально»
+        # кнопка «Налаштування» є тільки для режиму «Детально»
         self.detail_settings_button = ctk.CTkButton(
             model_frame,
             text=self.loc.t("settings_button"),
@@ -696,7 +691,7 @@ class App(*_APP_BASE_CLASSES):
             command=self._open_detail_settings,
         )
 
-        # ---------- Низ: кнопка «Очистити все» ----------
+        # ---------- низ, кнопка «Очистити все» ----------
         bottom_bar = ctk.CTkFrame(self, fg_color="transparent")
         bottom_bar.pack(side="bottom", fill="x", padx=15, pady=(0, 12))
 
@@ -712,7 +707,7 @@ class App(*_APP_BASE_CLASSES):
         )
         self.clear_button.pack(side="right")
 
-        # ---------- Звіт: список зліва, фото справа ----------
+        # ---------- звіт, список зліва, фото справа ----------
         results_frame = ctk.CTkFrame(self)
         results_frame.pack(fill="both", expand=True, padx=15, pady=(5, 8))
 
@@ -724,7 +719,7 @@ class App(*_APP_BASE_CLASSES):
         right_panel = ctk.CTkFrame(results_frame, fg_color="transparent")
         right_panel.pack(side="left", fill="both", expand=True, pady=5)
 
-        # Підпис: час + опис
+        # підпис: час + опис
         self.caption_frame = ctk.CTkFrame(right_panel, fg_color="transparent")
         self.caption_frame.pack(pady=(0, 5), anchor="w", fill="x")
         self.caption_frame.grid_columnconfigure(1, weight=1)
@@ -742,7 +737,7 @@ class App(*_APP_BASE_CLASSES):
         )
         self.description_label.grid(row=0, column=1, sticky="nw")
 
-        # Кнопки експорту в PDF
+        # кнопки експорту в пдф
         export_row = ctk.CTkFrame(right_panel, fg_color="transparent")
         export_row.pack(fill="x", pady=(0, 2), anchor="w")
 
@@ -774,21 +769,19 @@ class App(*_APP_BASE_CLASSES):
         )
         self.export_hint_label.pack(fill="x", pady=(0, 8))
 
-        # Контейнер для фото. Його розмір потрібен, щоб вписати картинку.
+        # контейнер для фото, його розмір потрібен, щоб вписати картинку
         self.photo_container = ctk.CTkFrame(right_panel, fg_color="transparent")
         self.photo_container.pack(fill="both", expand=True)
         self.photo_container.bind("<Configure>", self._on_photo_container_resize)
 
         self._create_photo_label()
 
+    # ф-ція вставки з буфера в поле (ентрі або текстбокс), не забути її
+    # повертає False, якщо в буфері нема тексту
     def _paste_clipboard_into(self, widget):
-        """
-        Вставляє текст з буфера в поле (CTkEntry або CTkTextbox).
-        Повертає False, якщо в буфері немає тексту.
-        """
         is_entry_like = hasattr(widget, "select_present")
 
-        # На macOS текст іноді лежить як UTF8_STRING, тому пробуємо обидва типи
+        # на маку текст іноді лежить як UTF8_STRING, тому пробую обидва типи
         clipboard_text = None
         for clip_type in (None, "UTF8_STRING"):
             try:
@@ -809,11 +802,9 @@ class App(*_APP_BASE_CLASSES):
         widget.insert("insert", clipboard_text)
         return True
 
+    # ф-ція додає копі, кат, пейст і селект ол для текстових полів
+    # тікінтер на маку не завжди має ці комбінації, тому прив'язую самі
     def _bind_clipboard_shortcuts(self, widget):
-        """
-        Додає Copy, Cut, Paste і Select All для текстових полів.
-        Tk на macOS не завжди має ці комбінації, тому прив'язуємо самі.
-        """
         is_entry_like = hasattr(widget, "select_present")
 
         def has_selection():
@@ -857,8 +848,8 @@ class App(*_APP_BASE_CLASSES):
             widget.bind(f"<{modifier}-v>", do_paste)
             widget.bind(f"<{modifier}-a>", do_select_all)
 
-        # У Windows з українською розкладкою літери не збігаються з латинськими,
-        # тому ловимо комбінації за кодом клавіші
+        # у віндовс з українською розкладкою літери не збігаються з латинськими,
+        # тому ловлю комбінації за кодом клавіші
         if sys.platform.startswith("win"):
             win_keycode_actions = {65: do_select_all, 67: do_copy, 86: do_paste, 88: do_cut}
 
@@ -870,16 +861,16 @@ class App(*_APP_BASE_CLASSES):
 
             widget.bind("<Control-KeyPress>", on_ctrl_keypress, add="+")
 
-    # ---------- Вікна ----------
+    # ---------- вікна ----------
+    # ф-ція масштабу екрана для вікна (на віндовс зі 125% чи 150%)
     def _window_scaling(self, window):
-        """Масштаб екрана для вікна (на Windows зі 125% чи 150%)."""
         try:
             return ctk.ScalingTracker.get_window_scaling(window)
         except Exception:  # noqa: BLE001
             return 1.0
 
+    # ф-ція координат (x, y), щоб вікно стояло по центру головного
     def _center_position(self, width_px, height_px):
-        """Координати (x, y), щоб вікно стояло по центру головного."""
         self.update_idletasks()
         screen_w, screen_h = self.winfo_screenwidth(), self.winfo_screenheight()
         try:
@@ -902,12 +893,10 @@ class App(*_APP_BASE_CLASSES):
         x, y = self._center_position(int(width * scale), int(height * scale))
         return f"{width}x{height}+{x}+{y}"
 
+    # ф-ція створює модальне вікно по центру головного, не забути її
+    # вікно спочатку ховаю, а показую після наповнення
     def _create_modal_dialog(self, title, width, height, *, minsize=None, resizable=False,
                              grab=True, parent=None, on_shown=None):
-        """
-        Створює модальне вікно по центру головного.
-        Вікно спочатку ховаємо, а показуємо після наповнення.
-        """
         previous_grab = self.grab_current()
         dialog = ctk.CTkToplevel(self)
         dialog.withdraw()
@@ -920,11 +909,11 @@ class App(*_APP_BASE_CLASSES):
             parent = previous_grab if previous_grab is not None else self
         dialog.transient(parent)
 
-        # На Windows customtkinter спочатку ховає і показує вікно, чекаємо
+        # на віндовс кастомтікінтер спочатку ховає і показує вікно, чекаю
         show_delay_ms = 300 if sys.platform.startswith("win") else 15
 
         def try_grab(attempt=0):
-            # Захоплюємо фокус, коли вікно вже видно
+            # захоплюю фокус, коли вікно вже видно
             if not dialog.winfo_exists():
                 return
             try:
@@ -963,7 +952,7 @@ class App(*_APP_BASE_CLASSES):
             dialog.after(1000, check_visible)
 
         def check_visible():
-            # Якщо вікно раптом сховалось, показуємо знову
+            # якщо вікно раптом сховалось, показую знову
             if not dialog.winfo_exists():
                 return
             try:
@@ -978,8 +967,8 @@ class App(*_APP_BASE_CLASSES):
         dialog.after(show_delay_ms, reveal)
         return dialog
 
+    # ф-ція діалогу «Так / Ні», повертає True, якщо натиснули «Так»
     def _ask_yes_no(self, title, message, yes_color=None, yes_hover_color=None, message_color=None):
-        """Діалог «Так / Ні». Повертає True, якщо натиснули «Так»."""
         previous_grab = self.grab_current()
 
         dialog = self._create_modal_dialog(title, 400, 200)
@@ -1015,7 +1004,7 @@ class App(*_APP_BASE_CLASSES):
 
         dialog.protocol("WM_DELETE_WINDOW", on_no)
 
-        # Підганяємо висоту під текст
+        # підганяю висоту під текст
         dialog.update_idletasks()
         height = int(dialog.winfo_reqheight() / self._window_scaling(dialog))
         dialog.geometry(self._centered_geometry(dialog, 400, height))
@@ -1027,18 +1016,16 @@ class App(*_APP_BASE_CLASSES):
 
         return result["confirmed"]
 
+    # ф-ція створює лейбл для фото з нуля, не забути її
+    # старий лейбл не чищу через configure(image=None): кастомтікінтер
+    # після цього іноді ламається
     def _create_photo_label(self):
-        """
-        Створює лейбл для фото з нуля.
-        Старий лейбл не чистимо через configure(image=None): customtkinter
-        після цього іноді ламається.
-        """
         self.photo_label = ctk.CTkLabel(self.photo_container, text=self.loc.t("photo_placeholder"))
         self.photo_label.pack(fill="both", expand=True)
         self.photo_label.bind("<Button-1>", self.toggle_lightbox)
 
+    # ф-ція прибирає фото і підпис, повертає заглушку
     def _reset_photo_area(self):
-        """Прибирає фото і підпис, повертає заглушку."""
         self.current_pil_image = None
         self.photo_label.destroy()
         self._create_photo_label()
@@ -1047,7 +1034,7 @@ class App(*_APP_BASE_CLASSES):
         self.export_pdf_button.configure(state="disabled")
         self.export_full_report_button.configure(state="disabled")
 
-    # ---------------- Тема і мова ----------------
+    # ---------------- тема і мова ----------------
 
     def _select_theme(self, theme_key):
         if getattr(self, "_theme_switch_busy", False):
@@ -1066,8 +1053,8 @@ class App(*_APP_BASE_CLASSES):
             ctk.set_appearance_mode(THEME_MODES[theme_key])
             return
 
-        # На Windows зміна теми ховає вікна і може зняти фокус з меню.
-        # Тому знімаємо grab на час зміни і повертаємо назад.
+        # на віндовс зміна теми ховає вікна і може зняти фокус з меню
+        # тому знімаю грэб на час зміни і повертаю назад
         self._theme_switch_busy = True
         dialog = self._menu_dialog
         if dialog is not None and dialog.winfo_exists():
@@ -1112,14 +1099,14 @@ class App(*_APP_BASE_CLASSES):
 
         self._apply_language()
 
+    # ф-ція перевіряє, чи обрано тип ключа, вшитий ключ безкоштовний, тому вибір не потрібен
     def _has_api_tier(self):
-        """Чи обрано тип ключа. Вшитий ключ безкоштовний, тому вибір не потрібен."""
         if not config.is_using_custom_key() and config.has_embedded_key():
             return True
         return self.settings.get("api_tier") in VALID_API_TIERS
 
+    # ф-ція типу ключа, з яким працюю, вшитий ключ = безкоштовний
     def _effective_api_tier(self):
-        """Тип ключа, з яким працюємо. Вшитий ключ = безкоштовний."""
         if not config.is_using_custom_key():
             return "free"
         return self.settings.get("api_tier") or "free"
@@ -1142,8 +1129,8 @@ class App(*_APP_BASE_CLASSES):
         if self._status_key == "status_choose_api_tier":
             self._set_status(None)
 
+    # ф-ція перемальовує всі написи поточною мовою, не забути її
     def _apply_language(self):
-        """Перемальовує всі написи поточною мовою."""
         self.title(self.loc.t("window_title"))
 
         self.menu_button.configure(text=self.loc.t("menu_button"))
@@ -1171,7 +1158,7 @@ class App(*_APP_BASE_CLASSES):
 
         self.report_list.configure(label_text=self.loc.t("report_label"))
 
-        # Відкрите меню
+        # відкрите меню
         if self._menu_dialog is not None and self._menu_dialog.winfo_exists():
             self._menu_dialog.title(self.loc.t("menu_title"))
             self._menu_title_label.configure(text=self.loc.t("menu_title"))
@@ -1191,7 +1178,7 @@ class App(*_APP_BASE_CLASSES):
             self._menu_reset_key_btn.configure(text=self._key_button_text())
             self._menu_wipe_btn.configure(text=self.loc.t("wipe_all_button"))
 
-        # Відкрита історія сесій
+        # відкрита історія сесій
         if self._history_window is not None and self._history_window.winfo_exists():
             self._history_window.title(self.loc.t("history_sessions_title"))
             self._history_delete_btn.configure(text=self.loc.t("history_delete_button"))
@@ -1199,7 +1186,7 @@ class App(*_APP_BASE_CLASSES):
                 self._history_select_all_chk.configure(text=self.loc.t("history_select_all"))
             self._history_rebuild_rows()
 
-        # Відкрите вікно кадрів сесії
+        # відкрите вікно кадрів сесії
         if self._history_session_window is not None and self._history_session_window.winfo_exists():
             self._open_history_session_window(self._history_current_session)
 
@@ -1226,7 +1213,7 @@ class App(*_APP_BASE_CLASSES):
             self._model_info_dialog.title(self.loc.t("model_info_title"))
             self._model_info_body_label.configure(text=self.loc.t("model_info_body"))
 
-        # Заглушка або «нічого не знайдено» - перемальовуємо. Реальний опис від Gemini не чіпаємо.
+        # заглушку або «нічого не знайдено» перемальовую, реальний опис від джемині не чіпаю
         if self._photo_state == "placeholder":
             self.photo_label.configure(text=self.loc.t("photo_placeholder"))
         elif self._photo_state == "no_results":
@@ -1241,10 +1228,10 @@ class App(*_APP_BASE_CLASSES):
                 text=self.loc.t(self._status_key, **self._status_kwargs), text_color=self._status_color
             )
 
-    # ---------------- Меню ----------------
+    # ---------------- меню ----------------
 
+    # ф-ція меню з темою, мовою, типом ключа, історією та іншим, не забути її
     def _open_menu(self, parent=None, on_shown=None):
-        """Меню з темою, мовою, типом ключа, історією та іншим."""
         if self._menu_dialog is not None and self._menu_dialog.winfo_exists():
             self._menu_dialog.lift()
             return
@@ -1309,7 +1296,7 @@ class App(*_APP_BASE_CLASSES):
             btn.pack(side="left", padx=(0, 6), pady=4)
             self.language_buttons.append((btn, lang_code))
 
-        # Тип ключа показуємо тільки для власного ключа
+        # тип ключа показую тільки для власного ключа
         tier_block = ctk.CTkFrame(dialog, fg_color="transparent")
         if config.is_using_custom_key() or not config.has_embedded_key():
             tier_block.pack(fill="x")
@@ -1334,7 +1321,7 @@ class App(*_APP_BASE_CLASSES):
             btn.pack(side="left", padx=(0, 6), pady=4)
             self.api_tier_buttons.append((btn, tier_key))
 
-        # Червона підказка, поки тип не обрано
+        # червона підказка, поки тип не обрано
         self._menu_tier_hint = ctk.CTkLabel(
             tier_block,
             text="" if self._has_api_tier() else self.loc.t("api_tier_required_hint"),
@@ -1362,7 +1349,7 @@ class App(*_APP_BASE_CLASSES):
         )
         self._menu_reset_key_btn.pack(padx=20, pady=(0, 8), fill="x")
 
-        # Повне видалення даних. macOS і Windows не видаляють теку даних разом із програмою.
+        # повне видалення даних, мак і віндовс не видаляють теку даних разом із програмою
         self._menu_wipe_btn = ctk.CTkButton(
             dialog, text=self.loc.t("wipe_all_button"),
             fg_color="transparent", border_width=2, border_color=DANGER_COLOR,
@@ -1399,20 +1386,20 @@ class App(*_APP_BASE_CLASSES):
         self._wipe_on_exit = True
         self._on_close_window()
 
+    # ф-ція викликається після закриття вікна, видаляє дані користувача
     def _wipe_data_now(self):
-        """Викликається після закриття вікна. Видаляє дані користувача."""
         logging.shutdown()
         if app_paths.wipe_user_data():
             return
-        # Під час розробки видаляємо тільки ключ і налаштування
+        # під час розробки видаляю тільки ключ і налаштування
         config.clear_api_key()
         try:
             os.remove(SETTINGS_PATH)
         except OSError:
             pass
 
+    # ф-ція тексту кнопки ключа в меню
     def _key_button_text(self):
-        """Текст кнопки ключа в меню."""
         if not config.has_embedded_key():
             return self.loc.t("reset_api_key_button")
         if config.is_using_custom_key():
@@ -1426,14 +1413,14 @@ class App(*_APP_BASE_CLASSES):
         if config.is_using_custom_key():
             self._confirm_default_key()
             return
-        # Зараз стандартний ключ, даємо ввести свій
+        # зараз стандартний ключ, даю ввести свій
         if self._menu_dialog is not None and self._menu_dialog.winfo_exists():
             self._menu_dialog.destroy()
         self._menu_dialog = None
         self._open_api_key_dialog(is_first_setup=False)
 
+    # ф-ція видаляє власний ключ, далі працює вшитий
     def _confirm_default_key(self):
-        """Видаляє власний ключ, далі працює вшитий."""
         confirmed = self._ask_yes_no(
             self.loc.t("default_key_title"),
             self.loc.t("default_key_confirm"),
@@ -1461,12 +1448,12 @@ class App(*_APP_BASE_CLASSES):
             self._menu_dialog.destroy()
         self._menu_dialog = None
 
-        # Скидаємо поточну сесію, історія лишається
+        # скидаю поточну сесію, історія лишається
         self.reset_all()
         self._open_api_key_dialog(is_first_setup=True)
 
+    # ф-ція вікна «Про застосунок», короткі кроки і поради
     def _open_about_dialog(self):
-        """Вікно «Про застосунок»: короткі кроки і поради."""
         if self._about_dialog is not None and self._about_dialog.winfo_exists():
             self._about_dialog.lift()
             return
@@ -1491,8 +1478,8 @@ class App(*_APP_BASE_CLASSES):
         height = min(needed, max(self.winfo_screenheight() - 120, 400))
         dialog.geometry(self._centered_geometry(dialog, 480, height))
 
+    # ф-ція малює вміст вікна «Про застосунок» заново (треба при зміні мови)
     def _render_about_content(self):
-        """Малює вміст вікна «Про застосунок» заново (потрібно при зміні мови)."""
         frame = self._about_content
         for widget in frame.winfo_children():
             widget.destroy()
@@ -1552,10 +1539,10 @@ class App(*_APP_BASE_CLASSES):
             font=ctk.CTkFont(size=11),
         ).pack(fill="x", side="bottom")
 
-    # ---------------- Налаштування деталізації ----------------
+    # ---------------- налаштування деталізації ----------------
 
+    # ф-ція вікна зі слайдером рівня деталізації (для режиму «Детально»)
     def _open_detail_settings(self):
-        """Вікно зі слайдером рівня деталізації (для режиму «Детально»)."""
         if self._detail_dialog is not None and self._detail_dialog.winfo_exists():
             self._detail_dialog.lift()
             return
@@ -1605,7 +1592,7 @@ class App(*_APP_BASE_CLASSES):
             level_key, _, level_frames, _ = DETAIL_LEVELS[index]
             self._detail_level_label.configure(text=self.loc.t(level_key))
             self._detail_frames_label.configure(text=self.loc.t("detail_level_frames_hint", count=level_frames))
-            # Зберігаємо рівень, тільки якщо стоїть галочка «Запам'ятати»
+            # зберігаю рівень, тільки якщо стоїть галочка «Запам'ятати»
             if self.remember_detail_level:
                 self.settings["detail_level_index"] = index
                 save_settings(self.settings)
@@ -1622,7 +1609,7 @@ class App(*_APP_BASE_CLASSES):
         self._detail_slider.set(self.detail_level_index)
         self._detail_slider.pack(padx=34, pady=(0, 4), fill="x")
 
-        # Підписи під слайдером. Ставимо їх у ті самі точки, де стоять кружки.
+        # підписи під слайдером, ставлю їх у ті самі точки, де стоять кружки
         captions_row = ctk.CTkFrame(dialog, fg_color="transparent", height=18)
         captions_row.pack(padx=34, pady=(0, 0), fill="x")
         self._detail_caption_labels = []
@@ -1652,13 +1639,13 @@ class App(*_APP_BASE_CLASSES):
         )
         self._detail_remember_checkbox.pack(padx=20, pady=(16, 20), anchor="w")
 
+    # ф-ція вікна з поясненням режиму «Детально»
     def _open_detail_info_dialog(self):
-        """Вікно з поясненням режиму «Детально»."""
         if self._detail_info_dialog is not None and self._detail_info_dialog.winfo_exists():
             self._detail_info_dialog.lift()
             return
 
-        # Вікно відкривається поверх «Налаштувань», тому повертаємо фокус назад
+        # вікно відкривається поверх «Налаштувань», тому повертаю фокус назад
         previous_grab = self.grab_current()
 
         dialog = self._create_modal_dialog(self.loc.t("detail_info_title"), 400, 320)
@@ -1680,8 +1667,8 @@ class App(*_APP_BASE_CLASSES):
 
         ctk.CTkButton(dialog, text=self.loc.t("dialog_understood"), command=on_close).pack(pady=(0, 20))
 
+    # ф-ція вікна з поясненням «Швидкий» і «Детально»
     def _open_model_info_dialog(self):
-        """Вікно з поясненням «Швидкий» і «Детально»."""
         if self._model_info_dialog is not None and self._model_info_dialog.winfo_exists():
             self._model_info_dialog.lift()
             return
@@ -1707,14 +1694,12 @@ class App(*_APP_BASE_CLASSES):
 
         ctk.CTkButton(dialog, text=self.loc.t("dialog_understood"), command=on_close).pack(pady=(0, 20))
 
-    # ---------------- API-ключ ----------------
+    # ---------------- ЕйПіАй-ключ ----------------
 
+    # ф-ція вікна введення ключа джемині, не забути її
+    # при першому запуску ключ потрібен, але закрити вікно можна:
+    # тоді при старті аналізу воно відкриється знову
     def _open_api_key_dialog(self, is_first_setup=False):
-        """
-        Вікно введення ключа Gemini.
-        При першому запуску ключ потрібен, але закрити вікно можна:
-        тоді при старті аналізу воно відкриється знову.
-        """
         dialog = self._create_modal_dialog(self.loc.t("setup_title"), 480, 320)
         dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
 
@@ -1723,7 +1708,7 @@ class App(*_APP_BASE_CLASSES):
             dialog, text=self.loc.t(description_key), wraplength=440, justify="left"
         ).pack(padx=20, pady=(20, 4), fill="x")
 
-        # Посилання відкриває браузер, бо текст мишкою не скопіюється
+        # посилання відкриває браузер, бо текст мишкою не скопіюється
         ctk.CTkButton(
             dialog,
             text=self.loc.t("setup_open_link_button"),
@@ -1738,7 +1723,7 @@ class App(*_APP_BASE_CLASSES):
         entry_row.pack(padx=20, pady=5)
 
         entry = ctk.CTkEntry(entry_row, width=330, placeholder_text="AQ.Ab8...")
-        existing_key = config.load_custom_key()  # вшитий ключ не показуємо
+        existing_key = config.load_custom_key()  # вшитий ключ не показую
         if existing_key:
             entry.insert(0, existing_key)
         entry.pack(side="left")
@@ -1750,7 +1735,7 @@ class App(*_APP_BASE_CLASSES):
                 status_label.configure(text=self.loc.t("setup_clipboard_empty"), text_color=STATUS_COLOR_ERROR)
             entry.focus_set()
 
-        # Кнопка «Вставити» на випадок, якщо Cmd+V не працює
+        # кнопка «Вставити» на випадок, якщо Cmd+V не працює
         ctk.CTkButton(
             entry_row, text=self.loc.t("setup_paste_button"), width=80,
             command=do_paste_button,
@@ -1768,7 +1753,7 @@ class App(*_APP_BASE_CLASSES):
             save_btn.configure(state="disabled")
             status_label.configure(text=self.loc.t("setup_checking"), text_color=STATUS_COLOR_NEUTRAL)
 
-            # Перевірка йде у фоні, щоб вікно не зависало
+            # перевірка йде у фоні, щоб вікно не зависало
             def worker():
                 result = check_api_key(key)
 
@@ -1792,10 +1777,10 @@ class App(*_APP_BASE_CLASSES):
 
         entry.bind("<Return>", lambda e: do_save())
 
-    # ---------------- Історія ----------------
+    # ---------------- історія ----------------
 
+    # ф-ція списку всіх аналізів (сесій), відкривається з меню
     def _open_history_window(self):
-        """Список усіх аналізів (сесій). Відкривається з меню."""
         old_menu = self._menu_dialog if (
             self._menu_dialog is not None and self._menu_dialog.winfo_exists()
         ) else None
@@ -1849,7 +1834,7 @@ class App(*_APP_BASE_CLASSES):
         )
         self._history_delete_btn.pack(side="left")
 
-        # Чекбокс «Всі» з'являється тільки в режимі вибору
+        # чекбокс «Всі» з'являється тільки в режимі вибору
         self._history_select_all_var = tk.BooleanVar(value=False)
         self._history_select_all_frame = ctk.CTkFrame(top_row, fg_color="transparent")
         self._history_select_all_chk = ctk.CTkCheckBox(
@@ -1867,8 +1852,8 @@ class App(*_APP_BASE_CLASSES):
         self._history_sessions = history_store.load_sessions(SCREENSHOTS_FOLDER)
         self._history_rebuild_rows()
 
+    # ф-ція заголовка сесії: дата і час завершення, старі записи це «Без категорії»
     def _format_session_title(self, session):
-        """Заголовок сесії: дата і час завершення. Старі записи - «Без категорії»."""
         if session.get("is_legacy"):
             return self.loc.t("history_uncategorized")
         iso_str = session.get("finished_at", "")
@@ -1951,8 +1936,8 @@ class App(*_APP_BASE_CLASSES):
         self._history_rebuild_rows()
         self._history_update_delete_btn_style()
 
+    # ф-ція галочки «Всі», стоїть тільки якщо вибрано всі сесії
     def _history_sync_select_all_var(self):
-        """Галочка «Всі» стоїть, тільки якщо вибрано всі сесії."""
         if self._history_select_all_var is None:
             return
         all_selected = bool(self._history_sessions) and (
@@ -1960,13 +1945,11 @@ class App(*_APP_BASE_CLASSES):
         )
         self._history_select_all_var.set(all_selected)
 
+    # ф-ція стилю кнопки «Видалити», не забути її:
+    # - звичайна (сіра), коли не вибираю
+    # - жирна сіра, коли вибираю, але нічого не обрано
+    # - червона, коли щось обрано
     def _history_update_delete_btn_style(self):
-        """
-        Кнопка «Видалити»:
-        - звичайна (сіра), коли не вибираємо;
-        - жирна сіра, коли вибираємо, але нічого не обрано;
-        - червона, коли щось обрано.
-        """
         if self._history_delete_btn is None:
             return
 
@@ -2002,7 +1985,7 @@ class App(*_APP_BASE_CLASSES):
             self._history_selected_ids = set()
 
     def _history_on_delete_pressed(self):
-        # Одна кнопка і входить у режим вибору, і підтверджує видалення
+        # одна кнопка і входить у режим вибору, і підтверджує видалення
         if not self._history_selection_mode:
             self._history_set_selection_mode(True)
             self._history_rebuild_rows()
@@ -2023,8 +2006,8 @@ class App(*_APP_BASE_CLASSES):
         if confirmed:
             self._history_do_delete()
 
+    # ф-ція видаляє обрані сесії разом з їхніми кадрами (файли і записи)
     def _history_do_delete(self):
-        """Видаляє обрані сесії разом з їхніми кадрами (файли і записи)."""
         ids_to_delete = self._history_selected_ids
         remaining = []
         for session in self._history_sessions:
@@ -2044,10 +2027,10 @@ class App(*_APP_BASE_CLASSES):
         self._history_rebuild_rows()
         self._history_update_delete_btn_style()
 
-    # ---------------- Кадри однієї сесії ----------------
+    # ---------------- кадри однієї сесії ----------------
 
+    # ф-ція вікна з кадрами однієї сесії, тут же кнопка експорту всієї сесії в пдф
     def _open_history_session_window(self, session):
-        """Вікно з кадрами однієї сесії. Тут же кнопка експорту всієї сесії в PDF."""
         if self._history_session_window is not None and self._history_session_window.winfo_exists():
             self._history_session_window.destroy()
 
@@ -2253,8 +2236,8 @@ class App(*_APP_BASE_CLASSES):
         if confirmed:
             self._history_frame_do_delete()
 
+    # ф-ція видаляє обрані кадри, якщо кадрів не лишилось, сесію теж прибираю
     def _history_frame_do_delete(self):
-        """Видаляє обрані кадри. Якщо кадрів не лишилось - сесію теж прибираємо."""
         ids_to_delete = self._history_frame_selected_ids
         remaining = []
         for frame in self._history_session_frames:
@@ -2296,8 +2279,8 @@ class App(*_APP_BASE_CLASSES):
         self._history_frame_update_delete_btn_style()
         self._history_rebuild_rows()
 
+    # ф-ція експорту всіх кадрів сесії в один пдф
     def _history_session_export_pdf(self):
-        """Експорт усіх кадрів сесії в один PDF."""
         session = self._history_current_session
         if session is None or not session.get("frames"):
             return
@@ -2331,8 +2314,8 @@ class App(*_APP_BASE_CLASSES):
         except Exception as error:
             self._set_status("export_pdf_error", error=error)
 
+    # ф-ція окремого вікна з одним кадром з історії: фото, час, опис, кнопки
     def _show_history_preview(self, frame, session=None):
-        """Окреме вікно з одним кадром з історії: фото, час, опис, кнопки."""
         screenshot_path = os.path.join(SCREENSHOTS_FOLDER, frame.get("filename", ""))
         if not os.path.exists(screenshot_path):
             return
@@ -2435,21 +2418,21 @@ class App(*_APP_BASE_CLASSES):
             actions_row, text=self.loc.t("history_save_image_button"), command=do_save_image,
         ).pack(side="left", expand=True, fill="x", padx=(5, 0))
 
-    # ---------------- Обробники подій ----------------
+    # ---------------- обробники подій ----------------
 
     def _on_prompt_enter(self, event):
         self.start_analysis()
-        return "break"  # Enter запускає аналіз, а не переносить рядок
+        return "break"  # ентер запускає аналіз, а не переносить рядок
 
+    # ф-ція перевіряє, чи фокус зараз у полі запиту (тоді стрілки рухають курсор)
     def _is_typing_in_prompt(self):
-        """Чи фокус зараз у полі запиту (тоді стрілки рухають курсор)."""
         focused = self.focus_get()
         if focused is None:
             return False
         return str(focused).startswith(str(self.prompt_box))
 
+    # ф-ція гортання звіту, direction: -1 попередній момент, +1 наступний
     def _navigate_report(self, direction):
-        """direction: -1 попередній момент, +1 наступний."""
         if self._is_typing_in_prompt():
             return
         if not self.report_buttons:
@@ -2492,9 +2475,9 @@ class App(*_APP_BASE_CLASSES):
             return
         self._accept_video_path(path)
 
+    # ф-ція спільної точки для вибору відео: діалогом і перетягуванням, не забути її
     def _accept_video_path(self, path):
-        """Спільна точка для вибору відео: діалогом і перетягуванням."""
-        # Тривалість читаємо з заголовка файлу, це швидко
+        # тривалість читаю з заголовка файлу, це швидко
         try:
             duration_sec = get_video_duration_sec(path)
         except ValueError:
@@ -2510,7 +2493,7 @@ class App(*_APP_BASE_CLASSES):
             return
 
         if not duration_sec:
-            # Тривалість невідома - питаємо користувача
+            # тривалість невідома, питаю користувача
             confirmed = self._ask_yes_no(
                 self.loc.t("duration_unknown_title"),
                 self.loc.t("duration_unknown_message"),
@@ -2524,10 +2507,10 @@ class App(*_APP_BASE_CLASSES):
         self.file_label.configure(text=os.path.basename(path))
         self._set_status(None)
 
-    # ---------------- Перетягування файлу ----------------
+    # ---------------- перетягування файлу ----------------
 
+    # ф-ція дозволяє перетягнути відео у вікно, без бібліотеки просто вимикаю
     def _setup_drag_and_drop(self):
-        """Дозволяє перетягнути відео у вікно. Без бібліотеки - просто вимикаємо."""
         self._dnd_enabled = False
         self._dnd_status_reset_job = None
         self._status_before_flash = (None, {}, STATUS_COLOR_NEUTRAL)
@@ -2543,7 +2526,7 @@ class App(*_APP_BASE_CLASSES):
             print(f"[diag] drag-and-drop вимкнено: {error}")
             return
 
-        # Темний напис «відпустіть файл», показуємо коли файл над вікном
+        # темний напис «відпустіть файл», показую коли файл над вікном
         self._dnd_overlay = ctk.CTkFrame(self, fg_color=("gray20", "gray10"))
         self._dnd_overlay_label = ctk.CTkLabel(
             self._dnd_overlay, text=self.loc.t("dnd_drop_hint"),
@@ -2579,12 +2562,12 @@ class App(*_APP_BASE_CLASSES):
         paths = self._parse_dnd_paths(event.data)
         if not paths:
             return event.action
-        path = paths[0]  # беремо перший файл
+        path = paths[0]  # беру перший файл
 
         if self._dnd_probe_busy:
             return event.action
 
-        # Перевірка файлу може йти довго, тому в окремому потоці
+        # перевірка файлу може йти довго, тому в окремому потоці
         self._dnd_probe_busy = True
 
         def worker():
@@ -2597,8 +2580,8 @@ class App(*_APP_BASE_CLASSES):
         threading.Thread(target=worker, daemon=True).start()
         return event.action
 
+    # ф-ція продовження перетягування, вже в головному потоці
     def _on_dnd_classified(self, path, status):
-        """Продовження перетягування, вже в головному потоці."""
         self._dnd_probe_busy = False
 
         if self._analysis_running:
@@ -2621,8 +2604,8 @@ class App(*_APP_BASE_CLASSES):
 
         self._accept_video_path(path)
 
+    # ф-ція розбирає рядок зі шляхами, який віддає tkinterdnd2
     def _parse_dnd_paths(self, data):
-        """Розбирає рядок зі шляхами, який віддає tkinterdnd2."""
         if not data:
             return []
         try:
@@ -2630,8 +2613,8 @@ class App(*_APP_BASE_CLASSES):
         except Exception:
             return [data]
 
+    # ф-ція коротке повідомлення в статусі, яке саме зникає і повертає попередній текст
     def _flash_status(self, key, color=None, duration_ms=2500, **kwargs):
-        """Коротке повідомлення в статусі, яке саме зникає і повертає попередній текст."""
         if self._dnd_status_reset_job is not None:
             self.after_cancel(self._dnd_status_reset_job)
         else:
@@ -2641,14 +2624,14 @@ class App(*_APP_BASE_CLASSES):
         def restore():
             self._dnd_status_reset_job = None
             if self._status_key != key:
-                return  # статус уже змінили - не чіпаємо
+                return  # статус уже змінили, не чіпаю
             prev_key, prev_kwargs, prev_color = self._status_before_flash
             self._set_status(prev_key, color=prev_color, **prev_kwargs)
 
         self._dnd_status_reset_job = self.after(duration_ms, restore)
 
+    # ф-ція обрізає текст, який довший за MAX_PROMPT_CHARS
     def _on_prompt_modified(self, event=None):
-        """Обрізає текст, який довший за MAX_PROMPT_CHARS."""
         textbox = self.prompt_box._textbox
         if not textbox.edit_modified():
             return
@@ -2664,8 +2647,8 @@ class App(*_APP_BASE_CLASSES):
             text=self.loc.t("char_count", count=count, max=MAX_PROMPT_CHARS), text_color=color
         )
 
+    # ф-ція підпису під фото: час жирним зліва, опис праворуч
     def _set_caption(self, time_str, text):
-        """Підпис під фото: час жирним зліва, опис праворуч."""
         if time_str:
             self.caption_time_label.configure(text=time_str)
             self.caption_time_label.grid()
@@ -2674,12 +2657,12 @@ class App(*_APP_BASE_CLASSES):
             self.caption_time_label.grid_remove()
         self.description_label.configure(text=text)
 
+    # ф-ція повертає програму до початкового стану, не забути її
     def reset_all(self):
-        """Повертає програму до початкового стану."""
         self.close_lightbox()
 
         if self._analysis_running:
-            # Якщо аналіз іще йде - зупиняємо його
+            # якщо аналіз іще йде, зупиняю його
             self._cancel_event.set()
 
         self.video_path = None
@@ -2695,14 +2678,14 @@ class App(*_APP_BASE_CLASSES):
         self._clear_report_list()
         self._reset_photo_area()
 
-        # Режим треба вибрати заново
+        # режим треба вибрати заново
         self.selected_mode = None
         for btn, name, _ in self.model_buttons:
             btn.configure(fg_color=MODEL_NEUTRAL_COLOR, text_color=TEXT_COLOR_NEUTRAL)
         self.detail_settings_button.pack_forget()
 
+    # ф-ція прибирає список знайдених моментів
     def _clear_report_list(self):
-        """Прибирає список знайдених моментів."""
         for widget in self.report_list.winfo_children():
             widget.destroy()
         self.report_buttons = []
@@ -2710,16 +2693,13 @@ class App(*_APP_BASE_CLASSES):
         self._no_results_label = None
         self._last_prompt_text = ""
 
+    # ф-ція прибирає старий звіт перед новим аналізом, запит, відео і режим лишаються
     def _clear_report_view(self):
-        """
-        Прибирає старий звіт перед новим аналізом.
-        Запит, відео і режим лишаються.
-        """
         self._clear_report_list()
         self._reset_photo_area()
 
+    # ф-ція показує «Почати» або «Зупинити»
     def _set_analysis_running(self, running):
-        """Показує «Почати» або «Зупинити»."""
         self._analysis_running = running
         if running:
             self.submit_button.pack_forget()
@@ -2730,8 +2710,8 @@ class App(*_APP_BASE_CLASSES):
             self.submit_button.configure(state="normal")
             self.submit_button.pack()
 
+    # ф-ція для кнопки «Зупинити», фоновий потік сам побачить прапорець і вийде
     def stop_analysis(self):
-        """Натиснули «Зупинити». Фоновий потік сам побачить прапорець і вийде."""
         if not self._analysis_running:
             return
         self._cancel_event.set()
@@ -2773,7 +2753,7 @@ class App(*_APP_BASE_CLASSES):
         self._set_status("status_cutting_frames")
         self._set_progress(0, allow_decrease=True)
 
-        # Параметри беремо тут, а не у фоновому потоці: користувач міг би
+        # параметри беру тут, а не у фоновому потоці: користувач міг би
         # посмикати слайдер уже під час аналізу
         if self.selected_mode == MODE_FAST:
             max_frames = FAST_MODE_FRAMES
@@ -2782,7 +2762,7 @@ class App(*_APP_BASE_CLASSES):
         else:
             _, thinking_level, max_frames, media_resolution = DETAIL_LEVELS[self.detail_level_index]
 
-        # Аналіз у фоновому потоці, інакше вікно зависне
+        # аналіз у фоновому потоці, інакше вікно зависне
         thread = threading.Thread(
             target=self._run_pipeline_guarded,
             args=(prompt_text, ANALYSIS_MODEL_NAME, self.loc.language, max_frames, thinking_level, media_resolution),
@@ -2790,8 +2770,8 @@ class App(*_APP_BASE_CLASSES):
         )
         thread.start()
 
+    # ф-ція вмикає «не засинати» на час аналізу і запускає пайплайн
     def _run_pipeline_guarded(self, *pipeline_args):
-        """Вмикає «не засинати» на час аналізу і запускає пайплайн."""
         keep_awake = KeepAwake()
         watchdog = SuspendWatchdog()
         self._suspend_watchdog = watchdog
@@ -2803,15 +2783,15 @@ class App(*_APP_BASE_CLASSES):
             watchdog.stop()
             keep_awake.stop()
 
+    # ф-ція головної роботи: нарізка відео, запити до джемині, скріншоти, збереження, йде у фоні, не забути її
     def run_pipeline(self, prompt_text, model_name, language, max_frames, thinking_level, media_resolution):
-        """Головна робота: нарізка відео, запити до Gemini, скріншоти, збереження. Йде у фоні."""
         pipeline_start_ts = time.time()
         print(f"[log] Старт аналізу: {self.video_path}")
         self._failed_batches = 0
-        full_res_dir = None  # тимчасова тека для повних кадрів, видаляємо в кінці
+        full_res_dir = None  # тимчасова тека для повних кадрів, видаляю в кінці
         try:
-            # Нарізка і запити до Gemini йдуть одночасно:
-            # нарізка кладе кадри в чергу, а Gemini забирає їх пачками.
+            # нарізка і запити до джемині йдуть одночасно:
+            # нарізка кладе кадри в чергу, а джемині забирає їх пачками
             full_res_dir = os.path.join(SCREENSHOTS_FOLDER, f".cache_{uuid.uuid4().hex}")
             os.makedirs(full_res_dir, exist_ok=True)
 
@@ -2819,25 +2799,25 @@ class App(*_APP_BASE_CLASSES):
             frames_lock = threading.Lock()
             frame_queue = queue.Queue()
             extraction_error_box = {}
-            # Нарізку зупиняємо або по кнопці, або якщо Gemini впав
+            # нарізку зупиняю або по кнопці, або якщо джемині впав
             gemini_stop_event = threading.Event()
 
             def combined_is_cancelled():
                 return self._cancel_event.is_set() or gemini_stop_event.is_set()
 
-            # ---- Прогрес: нарізка 0-40%, аналіз 40-90%, скріншоти 90-97% ----
-            # Рахуємо в "одиницях роботи": кожен кадр = нарізати + проаналізувати.
+            # ---- прогрес: нарізка 0-40%, аналіз 40-90%, скріншоти 90-97% ----
+            # рахую в "одиницях роботи": кожен кадр = нарізати + проаналізувати
             cut_progress_box = {"fraction": 0.0}
             analysis_progress_box = {
                 "done_frames": 0,
                 "done_batches": 0,
                 "total_batches": 1,
-                # Найбільший відсоток, який уже показали. Бар не повертається назад.
+                # найбільший відсоток, який уже показав, бар не повертається назад
                 "max_combined_percent": 0.0,
-                # Скільки кадрів уже нарізано (для паралельної нарізки)
+                # скільки кадрів уже нарізано (для паралельної нарізки)
                 "parallel_frame_count_hint": 0,
             }
-            # Точна кількість кадрів, коли нарізка завершилась
+            # точна кількість кадрів, коли нарізка завершилась
             final_extracted_total_box = {"value": None}
 
             progress_lock = threading.Lock()
@@ -2849,7 +2829,7 @@ class App(*_APP_BASE_CLASSES):
                 cut_fraction = cut_progress_box["fraction"]
                 done_frames = analysis_progress_box["done_frames"]
 
-                # Скільки кадрів буде всього
+                # скільки кадрів буде всього
                 if final_extracted_total_box["value"] is not None:
                     expected_total = max(1, final_extracted_total_box["value"])
                 else:
@@ -2899,7 +2879,7 @@ class App(*_APP_BASE_CLASSES):
                     )
                     final_extracted_total_box["value"] = len(result_frames)
                     _push_combined_progress()
-                    # Якщо якісь кадри не пройшли через on_frame_ready, докидаємо їх
+                    # якщо якісь кадри не пройшли через on_frame_ready, докидаю їх
                     with frames_lock:
                         streamed_count = len(frames)
                         if streamed_count < len(result_frames):
@@ -2937,7 +2917,7 @@ class App(*_APP_BASE_CLASSES):
                     api_tier=self._effective_api_tier(),
                 )
             except GeminiApiError:
-                # Фатальна помилка: зупиняємо нарізку, далі вона не потрібна
+                # фатальна помилка: зупиняю нарізку, далі вона не потрібна
                 gemini_stop_event.set()
                 raise
             finally:
@@ -2964,8 +2944,8 @@ class App(*_APP_BASE_CLASSES):
             screenshots_start_ts = time.time()
             os.makedirs(SCREENSHOTS_FOLDER, exist_ok=True)
 
-            # Для кожного знайденого кадру готуємо ім'я файлу.
-            # uuid - щоб файли з різних аналізів не перезаписували один одного.
+            # для кожного знайденого кадру готую ім'я файлу
+            # юайді, щоб файли з різних аналізів не перезаписували один одного
             pending = []
             for match in matches:
                 if not (0 <= match.frame_number < len(frames)):
@@ -2978,8 +2958,8 @@ class App(*_APP_BASE_CLASSES):
             def on_screenshot_progress(fraction):
                 self._set_progress_async(90 + fraction * 7)
 
-            # Спочатку беремо повні кадри з кешу (вони вже є після нарізки).
-            # Відео відкриваємо тільки для тих, яких у кеші немає.
+            # спочатку беру повні кадри з кешу (вони вже є після нарізки)
+            # відео відкриваю тільки для тих, яких у кеші нема
             saved_paths = set()
             to_grab = []
             for match, timestamp_sec, path, _ in pending:
@@ -2999,8 +2979,8 @@ class App(*_APP_BASE_CLASSES):
                         self.video_path, to_grab, progress_callback=on_screenshot_progress,
                     )
                 except ScreenshotDiskFullError as error:
-                    # Диск скінчився. Зберігаємо те, що вже встигли записати,
-                    # а не викидаємо весь звіт.
+                    # диск скінчився, зберігаю те, що вже встиг записати,
+                    # а не викидаю весь звіт
                     saved_paths |= error.saved
                     print(f"[log] Місце на диску скінчилось ({error.done_targets}/{error.total_targets}) - "
                           f"продовжую з тим, що збережено ({len(saved_paths)}/{len(pending)})")
@@ -3038,7 +3018,7 @@ class App(*_APP_BASE_CLASSES):
                     "description": match.description,
                 })
 
-            # Кадри в історії - за часом відео
+            # кадри в історії за часом відео
             session_frames.sort(key=lambda f: f["timestamp_sec"])
 
             if session_frames:
@@ -3057,7 +3037,7 @@ class App(*_APP_BASE_CLASSES):
 
             wall_elapsed_sec = time.time() - pipeline_start_ts
             idle_sec = self._suspend_watchdog.suspended_sec if self._suspend_watchdog else 0.0
-            # Час, поки комп'ютер спав, не рахуємо
+            # час, поки комп'ютер спав, не рахую
             total_elapsed_sec = max(0.0, wall_elapsed_sec - idle_sec)
             if idle_sec >= 1.0:
                 print(f"[timing] весь аналіз загалом: {total_elapsed_sec:.1f}с "
@@ -3066,7 +3046,7 @@ class App(*_APP_BASE_CLASSES):
                 print(f"[timing] весь аналіз загалом: {total_elapsed_sec:.1f}с")
             print(f"[log] Готово. Знайдено моментів: {len(results)}")
 
-            # Сповіщення, якщо користувач міг згорнути вікно
+            # сповіщення, якщо користувач міг згорнути вікно
             self.after(0, lambda n=len(results): self._notify_analysis_done(n))
 
             self.after(0, lambda: self.show_results(results, prompt_text, total_elapsed_sec, idle_sec))
@@ -3095,7 +3075,7 @@ class App(*_APP_BASE_CLASSES):
                 pass
 
         except Exception as error:
-            # Спершу розблоковуємо інтерфейс, щоб він не завис, навіть якщо
+            # спершу розблоковую інтерфейс, щоб він не завис, навіть якщо
             # далі логування теж впаде (наприклад, диск повний)
             self.after(0, lambda: self._set_analysis_running(False))
             try:
@@ -3109,12 +3089,12 @@ class App(*_APP_BASE_CLASSES):
                 pass
 
         finally:
-            # Тимчасові повні кадри видаляємо
+            # тимчасові повні кадри видаляю
             if full_res_dir:
                 shutil.rmtree(full_res_dir, ignore_errors=True)
 
+    # ф-ція системного сповіщення, якщо вікно не активне
     def _notify_analysis_done(self, count):
-        """Системне сповіщення, якщо вікно не активне."""
         if not (notify_tools.is_available() or sys.platform == "darwin"):
             return
         try:
@@ -3127,11 +3107,9 @@ class App(*_APP_BASE_CLASSES):
         message = self.loc.t("notification_analysis_complete_message", count=count)
         threading.Thread(target=notify_tools.notify, args=(title, message), daemon=True).start()
 
+    # ф-ція ставить текст статусу за ключем перекладу (або прибирає його, якщо key=None)
+    # ключ запам'ятовую, щоб перемалювати статус при зміні мови
     def _set_status(self, key, color=None, **kwargs):
-        """
-        Ставить текст статусу за ключем перекладу (або прибирає його, якщо key=None).
-        Ключ запам'ятовуємо, щоб перемалювати статус при зміні мови.
-        """
         self._status_key = key
         self._status_kwargs = kwargs
         self._status_color = color or STATUS_COLOR_NEUTRAL
@@ -3141,13 +3119,11 @@ class App(*_APP_BASE_CLASSES):
     def _set_status_async(self, key, color=None, **kwargs):
         self.after(0, lambda: self._set_status(key, color=color, **kwargs))
 
+    # ф-ція показує прогрес (0-100), значення плавно доганяється, не забути її
+    # value=None, ховаю капсулу одразу
+    # нижче цілі не опускаю, крім випадку allow_decrease=True
+    # (тільки при старті нового аналізу)
     def _set_progress(self, value, allow_decrease=False):
-        """
-        Показує прогрес (0-100). Значення плавно доганяється.
-        value=None - сховати капсулу одразу.
-        Нижче цілі не опускаємо, крім випадку allow_decrease=True
-        (тільки при старті нового аналізу).
-        """
         if value is None:
             if self._progress_anim_job is not None:
                 self.after_cancel(self._progress_anim_job)
@@ -3162,7 +3138,7 @@ class App(*_APP_BASE_CLASSES):
             self.progress_frame.pack_forget()
             return
 
-        # Нове значення скасовує старий таймер «сховати після 100%»
+        # нове значення скасовує старий таймер «сховати після 100%»
         if self._progress_hide_job is not None:
             self.after_cancel(self._progress_hide_job)
             self._progress_hide_job = None
@@ -3178,8 +3154,8 @@ class App(*_APP_BASE_CLASSES):
         if self._progress_anim_job is None:
             self._animate_progress_step()
 
+    # ф-ція одного кроку анімації прогресу, зупиняється, коли вже біля цілі
     def _animate_progress_step(self):
-        """Один крок анімації прогресу. Зупиняється, коли вже біля цілі."""
         diff = self._progress_target - self._progress_displayed
         if abs(diff) < 0.3:
             self._progress_displayed = self._progress_target
@@ -3213,8 +3189,8 @@ class App(*_APP_BASE_CLASSES):
                              count=len(results), elapsed=elapsed_str, failed=failed)
         self._last_prompt_text = prompt_text
 
-        # 100% показуємо кілька секунд, потім ховаємо.
-        # Таймер зберігаємо, щоб новий старт міг його скасувати.
+        # 100% показую кілька секунд, потім ховаю
+        # таймер зберігаю, щоб новий старт міг його скасувати
         self._set_progress(100)
         self._progress_hide_job = self.after(PROGRESS_HOLD_AT_100_MS, lambda: self._set_progress(None))
 
@@ -3247,8 +3223,8 @@ class App(*_APP_BASE_CLASSES):
 
         self.show_photo(results[0])
 
+    # ф-ція рядка звіту: час зліва, опис справа
     def _make_report_row(self, result):
-        """Рядок звіту: час зліва, опис справа."""
         row = ctk.CTkFrame(self.report_list, fg_color=BUTTON_COLOR, corner_radius=6)
         row.grid_columnconfigure(1, weight=1)
 
@@ -3289,7 +3265,7 @@ class App(*_APP_BASE_CLASSES):
         self.current_result = result
         self._photo_state = "image"
 
-        # Підсвічуємо обраний рядок звіту
+        # підсвічую обраний рядок звіту
         selected_btn = None
         for btn, r in self.report_buttons:
             is_selected = r is result
@@ -3303,7 +3279,7 @@ class App(*_APP_BASE_CLASSES):
         self._set_caption(result["time_str"], result["description"])
         self.export_pdf_button.configure(state="normal")
 
-        # Відкриваємо картинку один раз і зберігаємо в пам'яті
+        # відкриваю картинку один раз і зберігаю в пам'яті
         try:
             with Image.open(result["screenshot_path"]) as opened:
                 opened.load()
@@ -3318,7 +3294,7 @@ class App(*_APP_BASE_CLASSES):
         self.photo_label.configure(cursor="hand2")
         self._render_photo()
 
-        # Якщо відкрито перегляд на весь екран - оновлюємо і його
+        # якщо відкрито перегляд на весь екран, оновлюю і його
         if self.lightbox_frame:
             self.zoom_index = 0
             self.pan_x = 0
@@ -3335,10 +3311,10 @@ class App(*_APP_BASE_CLASSES):
     def _result_caption(result):
         return f"{result['time_str']} — {result['description']}"
 
-    # ---------------- Експорт у PDF ----------------
+    # ---------------- експорт у пдф ----------------
 
+    # ф-ція зберігає поточний момент в пдф
     def export_current_pdf(self):
-        """Зберігає поточний момент в PDF."""
         if not self.current_result:
             return
 
@@ -3367,8 +3343,8 @@ class App(*_APP_BASE_CLASSES):
         except Exception as error:
             self._set_status("export_pdf_error", error=error)
 
+    # ф-ція зберігає весь звіт в один пдф, по сторінці на момент
     def export_full_report_pdf(self):
-        """Зберігає весь звіт в один PDF, по сторінці на момент."""
         if not self.report_buttons:
             return
 
@@ -3391,10 +3367,10 @@ class App(*_APP_BASE_CLASSES):
         except Exception as error:
             self._set_status("export_pdf_error", error=error)
 
-    # ---------------- Показ фото ----------------
+    # ---------------- показ фото ----------------
 
     def _on_photo_container_resize(self, event=None):
-        # Перерахунок розміру з затримкою, щоб не гальмувало під час розтягування вікна
+        # перерахунок розміру з затримкою, щоб не гальмувало під час розтягування вікна
         if self._resize_job:
             self.after_cancel(self._resize_job)
         self._resize_job = self.after(RESIZE_DEBOUNCE_MS, self._render_photo)
@@ -3419,9 +3395,9 @@ class App(*_APP_BASE_CLASSES):
         self.photo_label.configure(image=ctk_image, text="")
         self.photo_label.image = ctk_image  # без цього картинка зникне
 
+    # ф-ція розміру картинки, щоб вона цілком влізла і не спотворилась
     @staticmethod
     def _fit_image(pil_image, available_w, available_h, min_size=50):
-        """Розмір картинки, щоб вона цілком влізла і не спотворилась."""
         if available_w < min_size or available_h < min_size:
             return None
 
@@ -3434,8 +3410,8 @@ class App(*_APP_BASE_CLASSES):
         new_h = max(1, int(img_h * scale))
         return new_w, new_h
 
+    # ф-ція прокручує список звіту, щоб вибраний рядок було видно
     def _scroll_report_to_button(self, btn):
-        """Прокручує список звіту, щоб вибраний рядок було видно."""
         canvas = getattr(self.report_list, "_parent_canvas", None)
         if canvas is None:
             return
@@ -3462,7 +3438,7 @@ class App(*_APP_BASE_CLASSES):
             new_top = max(0, btn_bottom - canvas_height)
             canvas.yview_moveto(new_top / total_height)
 
-    # ---------------- Перегляд на весь екран ----------------
+    # ---------------- перегляд на весь екран ----------------
 
     def toggle_lightbox(self, event=None):
         if self.current_pil_image is None:
@@ -3479,12 +3455,12 @@ class App(*_APP_BASE_CLASSES):
         self._drag_start = None
         self.lightbox_image_item = None
 
-        # Темна підкладка на все вікно
+        # темна підкладка на все вікно
         self.lightbox_frame = ctk.CTkFrame(self, fg_color=LIGHTBOX_BG_COLOR, corner_radius=0)
         self.lightbox_frame.place(x=0, y=0, relwidth=1, relheight=1)
         self.lightbox_frame.bind("<Button-1>", lambda e: self.close_lightbox())
 
-        # Верхня панель: «Закрити» зліва, масштаб справа, підпис по центру
+        # верхня панель: «Закрити» зліва, масштаб справа, підпис по центру
         controls = ctk.CTkFrame(self.lightbox_frame, fg_color="transparent", height=48)
         controls.pack(fill="x", padx=20, pady=15)
         controls.pack_propagate(False)
@@ -3522,8 +3498,8 @@ class App(*_APP_BASE_CLASSES):
         )
         self.lightbox_caption_label.grid(row=0, column=1, sticky="nw")
 
+        # ф-ція підганяє ширину і висоту підпису під панель
         def fit_caption(event=None):
-            """Підганяє ширину і висоту підпису під панель."""
             label = self.lightbox_caption_label
             if label is None or not label.winfo_exists():
                 return
@@ -3584,7 +3560,7 @@ class App(*_APP_BASE_CLASSES):
         self.pan_x += dx
         self.pan_y += dy
         self._drag_start = (event.x, event.y)
-        # Рухаємо картинку без повного перемалювання
+        # рухаю картинку без повного перемалювання
         self.lightbox_canvas.move(self.lightbox_image_item, dx, dy)
 
     def _on_lightbox_resize(self, event=None):
@@ -3623,7 +3599,7 @@ class App(*_APP_BASE_CLASSES):
 
 
 if __name__ == "__main__":
-    # Потрібно для зібраного .exe на Windows, інакше дочірні процеси відкривають вікна
+    # потрібно для зібраного ехе на віндовс, інакше дочірні процеси відкривають вікна
     import multiprocessing
     multiprocessing.freeze_support()
 
@@ -3631,7 +3607,7 @@ if __name__ == "__main__":
     try:
         app.mainloop()
     except KeyboardInterrupt:
-        # Ctrl+C або «Стоп» у PyCharm минає WM_DELETE_WINDOW, тому закриваємо тут
+        # Ctrl+C або «Стоп» у пайчарм минає WM_DELETE_WINDOW, тому закриваю тут
         logger.info("Отримано KeyboardInterrupt (Ctrl+C / Stop) - завершую")
         app.quit()
     logger.info("Головний цикл завершено, закриваю вікно")
