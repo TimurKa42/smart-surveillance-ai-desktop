@@ -1,5 +1,5 @@
 # =============================================================================
-# Smart Surveillance AI
+# LookBack
 # © 2026 Тимур Каленик (Timur Kalenik Corporation) <timurkalenik950@gmail.com>
 # Автор: Тимур Каленик. Усі права захищено.
 #
@@ -9,25 +9,20 @@
 # авторства заборонені. Повні умови — у файлі LICENSE.
 # =============================================================================
 
-"""
-history_store.py
-
-Історія аналізів. Зберігається у файлі screenshots/meta.json.
-
-Один аналіз відео - це одна "сесія":
-    session_id    - унікальний номер
-    finished_at   - коли аналіз закінчився
-    video_name    - назва відео
-    video_path    - шлях до відео
-    frames        - список знайдених кадрів:
-                    {id, filename, timestamp_sec, description}
-
-Файли скріншотів називаємо uuid, щоб кадри з різних відео не затирали один одного.
-
-Міграція: раніше meta.json був просто списком кадрів без сесій. Такий
-старий файл при першому читанні перетворюється на одну сесію "Без категорії"
-(is_legacy=True) і одразу записується назад у новому форматі.
-"""
+# history_store.py, тут історія аналізів, зберігаю її у файлі мета джейсон, щоб не забути
+#
+# один аналіз відео це одна сесія, в ній беру:
+#     session_id - унікальний номер
+#     finished_at - коли аналіз закінчився
+#     video_name - назва відео
+#     video_path - шлях до відео
+#     frames - список знайдених кадрів (id, filename, timestamp_sec, description)
+#
+# скріншоти називаю юайді, щоб кадри з різних відео не затирали один одного
+#
+# міграція, не забути: раніше мета джейсон був просто списком кадрів без сесій.
+# старий файл при першому читанні стає однією сесією "Без категорії"
+# (is_legacy=True) і одразу пишеться назад в новому форматі
 
 __author__ = "Тимур Каленик (Timur Kalenik)"
 __email__ = "timurkalenik950@gmail.com"
@@ -38,26 +33,26 @@ import json
 import os
 import uuid
 
+# назва файлу з історією, щоб не забути
 META_FILENAME = "meta.json"
 
 
+# ф-ція шляху до мета джейсон, не забути її
 def meta_path(screenshots_dir):
     return os.path.join(screenshots_dir, META_FILENAME)
 
 
+# ф-ція перевірки старого формату, старий це список кадрів без ключа frames
 def _is_legacy_flat_format(data):
-    """Старий формат - список кадрів без ключа "frames"."""
     if not data:
         return False
     first = data[0]
     return isinstance(first, dict) and "frames" not in first
 
 
+# ф-ція міграції, складаю старі кадри в одну сесію "Без категорії"
+# дату сесії беру найпізнішу серед кадрів, щоб вона стояла на правильному місці в списку
 def _migrate_flat_records(flat_records):
-    """
-    Складає старі кадри в одну сесію "Без категорії".
-    Дата сесії - найпізніша дата серед кадрів, щоб вона стояла на правильному місці в списку.
-    """
     frames = []
     found_ats = []
     video_name = ""
@@ -86,13 +81,11 @@ def _migrate_flat_records(flat_records):
     }
 
 
+# ф-ція читання історії, не забути її
+# повертаю список сесій, найновіші першими
+# якщо файл зіпсований або його нема, повертаю порожній список
+# старий формат одразу переводжу в новий
 def load_sessions(screenshots_dir):
-    """
-    Повертає список сесій, найновіші - першими.
-
-    Якщо файл зіпсований або його нема - повертає порожній список.
-    Старий формат одразу переводить у новий.
-    """
     path = meta_path(screenshots_dir)
     if not os.path.exists(path):
         return []
@@ -116,28 +109,31 @@ def load_sessions(screenshots_dir):
     return sessions
 
 
+# ф-ція запису, пишу всю історію в мета джейсон
 def save_sessions(screenshots_dir, sessions):
-    """Записує всю історію у meta.json."""
     path = meta_path(screenshots_dir)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(sessions, f, ensure_ascii=False, indent=2)
 
 
+# ф-ція додавання нової сесії на початок історії, щоб не забути
 def append_session(screenshots_dir, session):
-    """Додає нову сесію на початок історії."""
     sessions = load_sessions(screenshots_dir)
     sessions.insert(0, session)
     save_sessions(screenshots_dir, sessions)
 
 
+# ф-ція нового айді для кадру
 def new_record_id():
     return uuid.uuid4().hex
 
 
+# ф-ція нового айді для сесії
 def new_session_id():
     return uuid.uuid4().hex
 
 
+# ф-ція нової назви для скріншота, юайді плюс джейпег
 def new_screenshot_filename():
     return f"{uuid.uuid4().hex}.jpg"
 
