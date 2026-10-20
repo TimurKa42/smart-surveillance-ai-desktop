@@ -12,19 +12,35 @@
 
 # збірка: pyinstaller --noconfirm --clean main.spec
 # пайінсталер не вміє крос-компіляцію: ехе збираю на віндовс,
-# апп на маку. запускати з теки проєкту, в активованому венв311, щоб не забути
+# апп на маку. запускати можна звідки завгодно, шляхи рахую від теки спека,
+# але в активованому венв311, щоб не забути
 #
 # важливо: перед збіркою поруч з мейн.пай має лежати embedded_key.py з
 # вшитим ключем (дивись embedded_key.example.py). без нього збірка вийде
 # без стандартного ключа і доведеться вводити свій, не забути!
+import os
 import sys
+import tomllib
 from PyInstaller.utils.hooks import collect_all
+
+# беру теку де лежить спек, щоб шляхи не залежали від місця запуску
+BASE = SPECPATH
+
+# беру версію з пайпроджект.томл, щоб вона була в одному місці
+# якщо файлу нема, ставлю 1.0, щоб збірка не впала
+APP_VERSION = "1.0"
+try:
+    with open(os.path.join(BASE, "pyproject.toml"), "rb") as f:
+        APP_VERSION = tomllib.load(f)["project"]["version"]
+except Exception:
+    pass
 
 APP_NAME = "LookBack"          # ім'я ехе і теки даних, без пробілів
 DISPLAY_NAME = "LookBack"      # ім'я апп в док/файндері
-ICON_WIN = "assets/icon.ico"
-ICON_MAC = "assets/icon.icns"
-VERSION_WIN = "version_info.txt"   # дані про автора у властивостях ехе на віндовс
+APP_COPYRIGHT = "© 2026 Тимур Каленик (Timur Kalenik Corporation). Усі права захищено."
+ICON_WIN = os.path.join(BASE, "assets", "icon.ico")
+ICON_MAC = os.path.join(BASE, "assets", "icon.icns")
+VERSION_WIN = os.path.join(BASE, "version_info.txt")   # дані про автора у властивостях ехе на віндовс
 
 datas = []
 binaries = []
@@ -44,7 +60,10 @@ for package in ("customtkinter", "tkinterdnd2", "av"):
 hiddenimports += ["embedded_key", "video_fast"]
 
 # свої ресурси: іконка вікна (читається через app_paths.resource_path)
-datas += [("assets/icon.ico", "assets"), ("assets/icon_1024.png", "assets")]
+datas += [
+    (os.path.join(BASE, "assets", "icon.ico"), "assets"),
+    (os.path.join(BASE, "assets", "icon_1024.png"), "assets"),
+]
 
 # пайобджі-сі для нативних сповіщень мак-ос (notify_tools.py)
 if sys.platform == "darwin":
@@ -61,8 +80,8 @@ if sys.platform == "win32":
     ]
 
 a = Analysis(
-    ["main.py"],
-    pathex=[],
+    [os.path.join(BASE, "main.py")],
+    pathex=[BASE],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
@@ -104,17 +123,21 @@ coll = COLLECT(
     name=APP_NAME,
 )
 
+# метадані апп, тільки для мака
 if sys.platform == "darwin":
     app = BUNDLE(
         coll,
         name=f"{DISPLAY_NAME}.app",
         icon=ICON_MAC,
         bundle_identifier="com.lookback.ai",
+        version=APP_VERSION,
         info_plist={
             "CFBundleName": DISPLAY_NAME,
             "CFBundleDisplayName": DISPLAY_NAME,
+            "CFBundleShortVersionString": APP_VERSION,
+            "CFBundleVersion": APP_VERSION,
             "NSHighResolutionCapable": True,
-            "NSHumanReadableCopyright": "© 2026 Тимур Каленик (Timur Kalenik Corporation). Усі права захищено.",
+            "NSHumanReadableCopyright": APP_COPYRIGHT,
             "NSCameraUsageDescription": "Доступ до камери потрібен для аналізу відеопотоку.",
             "NSMicrophoneUsageDescription": "Доступ до мікрофона потрібен для запису відео зі звуком.",
         },
