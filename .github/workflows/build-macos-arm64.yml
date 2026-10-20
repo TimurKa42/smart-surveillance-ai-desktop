@@ -16,9 +16,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Check architecture
-        run: python -c "import platform; print(platform.machine())"
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -34,22 +31,19 @@ jobs:
         run: pyinstaller --noconfirm --clean main.spec
 
       - name: Verify arm64
-        run: file dist/*.app/Contents/MacOS/*
+        run: file dist/LookBack.app/Contents/MacOS/LookBack | grep arm64
 
       - name: Ad-hoc codesign
         run: |
-          codesign --force --deep --sign - "dist/Smart Surveillance AI.app"
-          codesign --verify --deep --strict --verbose=2 "dist/Smart Surveillance AI.app"
+          codesign --force --deep --sign - dist/LookBack.app
+          codesign --verify --deep --strict --verbose=2 dist/LookBack.app
 
       - name: Make DMG
-        run: |
-          bash build_dmg.sh || {
-            echo "Styled DMG failed, retrying without Finder styling"
-            sed -i '' 's|--hide-extension "${APP_NAME}.app"|--hide-extension "${APP_NAME}.app" --skip-jenkins|' build_dmg.sh
-            bash build_dmg.sh
-          }
+        run: bash build_dmg.sh
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SmartSurveillanceAI-macOS-arm64
-          path: scripts/dist/SmartSurveillanceAI-arm64.dmg
+          name: LookBack-macOS-arm64
+          path: scripts/dist/LookBack-arm64.dmg
+          if-no-files-found: error
+          retention-days: 14
