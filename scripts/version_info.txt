@@ -1,6 +1,6 @@
 # UTF-8
 # © 2026 Тимур Каленик (Timur Kalenik Corporation) — timurkalenik950@gmail.com
-# Метадані, що показуються у властивостях SmartSurveillanceAI.exe (Windows).
+# метадані, що показуються у властивостях LookBack.exe (віндовс), версію міняти тут і в pyproject.toml
 VSVersionInfo(
   ffi=FixedFileInfo(
     filevers=(1, 0, 0, 0),
@@ -18,12 +18,12 @@ VSVersionInfo(
         '040904B0',
         [
           StringStruct('CompanyName', 'Timur Kalenik Corporation'),
-          StringStruct('FileDescription', 'Smart Surveillance AI'),
+          StringStruct('FileDescription', 'LookBack'),
           StringStruct('FileVersion', '1.0.0.0'),
-          StringStruct('InternalName', 'SmartSurveillanceAI'),
+          StringStruct('InternalName', 'LookBack'),
           StringStruct('LegalCopyright', '(c) 2026 Timur Kalenik (timurkalenik950@gmail.com). All rights reserved.'),
-          StringStruct('OriginalFilename', 'SmartSurveillanceAI.exe'),
-          StringStruct('ProductName', 'Smart Surveillance AI'),
+          StringStruct('OriginalFilename', 'LookBack.exe'),
+          StringStruct('ProductName', 'LookBack'),
           StringStruct('ProductVersion', '1.0.0.0'),
           StringStruct('Comments', 'Author: Timur Kalenik. Project for MAN. See LICENSE.')
         ]
