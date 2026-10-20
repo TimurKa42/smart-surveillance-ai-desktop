@@ -1,5 +1,5 @@
 # =============================================================================
-# Smart Surveillance AI
+# LookBack
 # © 2026 Тимур Каленик (Timur Kalenik Corporation) <timurkalenik950@gmail.com>
 # Автор: Тимур Каленик. Усі права захищено.
 #
@@ -12,13 +12,13 @@
 """
 gemini_tools.py (десктопна версія)
 
-Надсилає кадри в Gemini через REST API (requests), а не через SDK.
-Чому так:
-1) Кілька пачок кадрів йдуть паралельно (ThreadPoolExecutor) - так швидше.
-2) При тимчасових помилках (мережа, таймаут, 429, 5xx) запит повторюється
+надсилає кадри в джеміні через рест апі (реквестс), а не через сдк.
+чому так:
+1) кілька пачок кадрів йдуть паралельно (ThreadPoolExecutor) - так швидше.
+2) при тимчасових помилках (мережа, таймаут, 429, 5xx) запит повторюється
    з паузою, тому один збій інтернету не валить весь аналіз.
 
-Ключ читається при кожному виклику через config.load_api_key(), тож
+ключ читається при кожному виклику через config.load_api_key(), тож
 ключ можна змінити в програмі без перезапуску.
 """
 
@@ -45,27 +45,27 @@ import config
 
 logger = logging.getLogger(__name__)
 
-# Скільки кадрів у одній пачці (одному запиті до Gemini).
+# скільки кадрів у одній пачці (одному запиті до джеміні).
 BATCH_SIZE = 40
 
-# Щоб прогрес-бар рухався плавніше, останню (неповну) пачку ділимо на
-# кілька менших. Так у короткому відео бар оновлюється не лише раз
-# наприкінці. Менше 6 кадрів ділити немає сенсу.
+# щоб прогрес-бар рухався плавніше, останню (неповну) пачку ділимо на
+# кілька менших. так у короткому відео бар оновлюється не лише раз
+# наприкінці. менше 6 кадрів ділити немає сенсу.
 MIN_TRICKLE_SUBBATCH_SIZE = 6
 MAX_TRICKLE_SUBBATCHES = 4
 
-# Скільки пачок летить у Gemini одночасно (для безкоштовного ключа).
-# Темп запитів все одно тримає _RateGate, тож зайві потоки просто чекають.
+# скільки пачок летить у джеміні одночасно (для безкоштовного ключа).
+# темп запитів все одно тримає _RateGate, тож зайві потоки просто чекають.
 # 6 - запас, щоб пара повільних запитів не блокувала чергу.
 MAX_PARALLEL_BATCHES = 6
 
-# Для платного ключа ліміти вищі, тож дозволяємо більше потоків.
+# для платного ключа ліміти вищі, тож дозволяємо більше потоків.
 PAID_TIER_MAX_PARALLEL_BATCHES = 16
 
 
 def _worker_count_for_tier(api_tier, batch_count=None):
-    """Скільки потоків можна запустити залежно від типу ключа.
-    Якщо тип невідомий (None або сміття) - беремо free, так безпечніше.
+    """скільки потоків можна запустити залежно від типу ключа.
+    якщо тип невідомий (нон або сміття) - беремо фрі, так безпечніше.
     batch_count - не запускаємо більше потоків, ніж є пачок."""
     ceiling = PAID_TIER_MAX_PARALLEL_BATCHES if api_tier == "paid" else MAX_PARALLEL_BATCHES
     if batch_count is not None:
@@ -73,8 +73,8 @@ def _worker_count_for_tier(api_tier, batch_count=None):
     return max(1, ceiling)
 
 
-# Одна спільна сесія для всіх запитів. Так з'єднання з сервером
-# повторно використовуються, і не треба щоразу робити TLS-рукостискання.
+# одна спільна сесія для всіх запитів. так з'єднання з сервером
+# повторно використовуються, і не треба щоразу робити тіелес-рукостискання.
 # pool_maxsize рахуємо від платної стелі, бо сесія створюється один раз,
 # ще до того, як відомо тип ключа.
 _http_session = requests.Session()
@@ -82,15 +82,15 @@ _http_session.mount(
     "https://", requests.adapters.HTTPAdapter(pool_maxsize=max(PAID_TIER_MAX_PARALLEL_BATCHES, 4))
 )
 
-# Модель за замовчуванням. Насправді main.py передає модель явно.
+# модель за замовчуванням. насправді main.py передає модель явно.
 DEFAULT_MODEL_NAME = "gemini-3.5-flash-lite"
 DEFAULT_PROMPT_LANGUAGE = "ua"
 
 API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 REQUEST_TIMEOUT_SEC = 120  # максимальний таймаут
 
-# Таймаут запиту: беремо медіану успішних запитів і множимо на 6.
-# Поки успішних запитів ще немає, ставимо 60 с.
+# таймаут запиту: беремо медіану успішних запитів і множимо на 6.
+# поки успішних запитів ще немає, ставимо 60 с.
 _TIMEOUT_MEDIAN_MULTIPLIER = 6
 _TIMEOUT_MIN_SEC = 30
 _TIMEOUT_INITIAL_SEC = 60
@@ -113,66 +113,66 @@ def _note_request_duration(seconds):
     with _success_durations_lock:
         _success_durations.append(seconds)
 
-# Скільки разів повторити пачку при тимчасовій помилці, перш ніж здатися.
+# скільки разів повторити пачку при тимчасовій помилці, перш ніж здатися.
 MAX_RETRIES = 3
 
-# Пауза перед повтором: 1.5 с, потім 3 с, потім 6 с.
+# пауза перед повтором: 1.5 с, потім 3 с, потім 6 с.
 RETRY_BACKOFF_BASE_SEC = 1.5
 
-# Пауза при помилці 429 (забагато запитів). Ліміт рахується за хвилину,
+# пауза при помилці 429 (забагато запитів). ліміт рахується за хвилину,
 # тому пауза довша: 20 с, 40 с, 80 с.
 RATE_LIMIT_BACKOFF_BASE_SEC = 20.0
 
-# ---- Спільний "гальмівник" запитів (клас _RateGate нижче) ----
+# ---- спільний "гальмівник" запитів (клас _RateGate нижче) ----
 #
-# Проблема: кожен потік сам чекав після 429 і повторював запит у той самий
-# момент, тому 429 приходили знову і знову. Тепер пауза одна на всіх, а
-# її довжину підказує сам Gemini (retryDelay). Також після 429 темп
+# проблема: кожен потік сам чекав після 429 і повторював запит у той самий
+# момент, тому 429 приходили знову і знову. тепер пауза одна на всіх, а
+# її довжину підказує сам джеміні (retryDelay). також після 429 темп
 # підлаштовується під реальний ліміт.
 
-# Вікно лімітів Gemini - одна хвилина.
+# вікно лімітів джеміні - одна хвилина.
 RATE_WINDOW_SEC = 60.0
 
-# Використовуємо 90% від ліміту, щоб не впиратися рівно в межу.
+# використовуємо 90% від ліміту, щоб не впиратися рівно в межу.
 RATE_LIMIT_SAFETY = 0.9
 
-# Скільки разів повторювати пачку після 429.
+# скільки разів повторювати пачку після 429.
 RATE_LIMIT_MAX_RETRIES = 5
 
-# Максимальна спільна пауза після одного 429, секунди.
+# максимальна спільна пауза після одного 429, секунди.
 RATE_LIMIT_MAX_COOLDOWN_SEC = 120.0
 
-# Додаємо 1 с до паузи, яку підказав Gemini.
+# додаємо 1 с до паузи, яку підказав джеміні.
 RATE_LIMIT_COOLDOWN_MARGIN_SEC = 1.0
 
-# Випадковий розкид часу пробудження потоків, щоб вони не стартували разом.
+# випадковий розкид часу пробудження потоків, щоб вони не стартували разом.
 RATE_LIMIT_JITTER_SEC = 1.5
 
-# Якщо Gemini не сказав, який у нас ліміт, тримаємо проміжок між запитами:
+# якщо джеміні не сказав, який у нас ліміт, тримаємо проміжок між запитами:
 # спочатку 5 с, після кожного 429 більше (до 12 с), після успіху трохи менше.
 UNKNOWN_LIMIT_GAP_SEC = 5.0
 UNKNOWN_LIMIT_GAP_MAX_SEC = 12.0
 GAP_RECOVERY_SEC = 0.3
 
-# Скільки токенів іде на один кадр. За замовчуванням 1120 (перевірено на тесті).
-# Далі число уточнюється з реальних відповідей Gemini.
+# скільки токенів іде на один кадр. за замовчуванням 1120 (перевірено на тесті).
+# далі число уточнюється з реальних відповідей джеміні.
 DEFAULT_TOKENS_PER_FRAME = 1120
 PROMPT_OVERHEAD_TOKENS = 600
 
-# ---- Роздільність кадрів для Gemini (generationConfig.mediaResolution) ----
+# ---- роздільність кадрів для джеміні (generationConfig.mediaResolution) ----
 #
-# Це головне, що впливає на швидкість на безкоштовному ключі. Ліміт
-# Flash-Lite - 250K токенів за хвилину, а кожен кадр за замовчуванням
-# коштує 1120 токенів. Тобто 2000 кадрів - це хвилин 8 чекання.
-# Менша роздільність = менше токенів на кадр:
+# це головне, що впливає на швидкість на безкоштовному ключі. ліміт
+# Флеш-Лайт - 250K токенів за хвилину, а кожен кадр за замовчуванням
+# коштує 1120 токенів. тобто 2000 кадрів - це хвилин 8 чекання.
+# менша роздільність = менше токенів на кадр:
 #   HIGH / None - 1120 токенів (за замовчуванням)
 #   MEDIUM      - 560 токенів
 #   LOW         - 280 токенів
-# Мінус: дрібні об'єкти можуть гірше розпізнаватись. Міняти треба після
+# мінус: дрібні об'єкти можуть гірше розпізнаватись. міняти треба після
 # порівняння на тому самому відео.
 #
-# Це не глобальна константа, а параметр, який іде від main.py по всьому
-# ланцюжку викликів. Так можна мати різні значення для "Швидкий" і
+# це не глобальна константа, а параметр, який іде від main.py по всьому
+# ланцюжку викликів. так можна мати різні значення для "Швидкий" і
 # "Детально". DEFAULT_MEDIA_RESOLUTION - запасне значення, якщо його не передали.
 DEFAULT_MEDIA_RESOLUTION = None
 _TOKENS_PER_FRAME_BY_RESOLUTION = {
@@ -182,14 +182,14 @@ _TOKENS_PER_FRAME_BY_RESOLUTION = {
     "MEDIA_RESOLUTION_LOW": 280,
 }
 
-# Які помилки варто повторити. Мережа, таймаут, 429 і 5xx зазвичай
-# проходять самі. А от неправильний ключ або дивна відповідь - ні.
+# які помилки варто повторити. мережа, таймаут, 429 і 5xx зазвичай
+# проходять самі. а от неправильний ключ або дивна відповідь - ні.
 RETRYABLE_ERROR_KINDS = {"rate_limit", "server", "timeout", "network"}
 
 
 @dataclass
 class Match:
-    """Один знайдений момент: номер кадру і короткий опис від Gemini."""
+    """один знайдений момент: номер кадру і короткий опис від джеміні."""
     frame_number: int
     description: str
 
@@ -213,7 +213,7 @@ SYSTEM_PROMPTS = {
     ),
 }
 
-# Схема відповіді (JSON). Gemini за нею повертає список знайдених кадрів.
+# схема відповіді (джейсон). джеміні за нею повертає список знайдених кадрів.
 RESPONSE_SCHEMA = {
     "type": "OBJECT",
     "properties": {
@@ -233,13 +233,13 @@ RESPONSE_SCHEMA = {
 }
 
 
-# Gemini 3 не приймає temperature/top_p/top_k, тому їх тут немає.
-# Замість них є thinkingConfig.thinkingLevel. Важливо: це вкладений
+# джеміні 3 не приймає temperature/top_p/top_k, тому їх тут немає.
+# замість них є thinkingConfig.thinkingLevel. важливо: це вкладений
 # об'єкт thinkingConfig, а не плоске поле в generationConfig - інакше
 # буде помилка 400.
 #
 # THINKING_LEVEL_BY_MODEL - запасне значення, якщо main.py не передав
-# свій рівень. Для Flash-Lite підтримується "minimal". Для інших моделей
+# свій рівень. для Флеш-Лайт підтримується "minimal". для інших моделей
 # (наприклад gemini-3.8-flash) "minimal" не підходить, там тільки
 # low/medium/high.
 THINKING_LEVEL_BY_MODEL = {
@@ -249,29 +249,29 @@ DEFAULT_THINKING_LEVEL = "low"
 
 
 class MissingApiKeyError(Exception):
-    """Ключа немає, а аналіз запустили."""
+    """ключа немає, а аналіз запустили."""
 
 
 class GeminiApiError(Exception):
     """
-    Помилка від Gemini або запит взагалі не дійшов до сервера.
+    помилка від джеміні або запит взагалі не дійшов до сервера.
 
-    kind - короткий код причини. За ним main.py показує зрозумілий текст:
+    kind - короткий код причини. за ним main.py показує зрозумілий текст:
     - "network"      - нема інтернету.
     - "timeout"      - сервер не відповів вчасно.
     - "rate_limit"   - 429, забагато запитів.
     - "quota_daily"  - вичерпано добовий ліміт (до завтра не допоможе).
     - "invalid_key"  - 401/403, ключ не підходить.
-    - "server"       - 5xx, проблема на боці Gemini.
+    - "server"       - 5xx, проблема на боці джеміні.
     - "blocked"      - відповідь 200, але без результату (часто спрацював
                        фільтр безпеки).
     - "unknown"      - інше (наприклад, дивна структура відповіді).
 
     retry_after - скільки секунд чекати перед повтором (з заголовка
-    Retry-After або з тіла відповіді). None, якщо не сказали.
+    Retry-After або з тіла відповіді). нон, якщо не сказали.
 
     quota - що саме спрацювало: scope ("minute"/"day"), metric
-    ("requests"/"tokens"), quota_id, limit. Або None.
+    ("requests"/"tokens"), quota_id, limit. або нон.
     """
 
     def __init__(self, message, kind="unknown", retry_after=None, quota=None):
@@ -283,16 +283,16 @@ class GeminiApiError(Exception):
 
 def check_api_key(api_key):
     """
-    Перевіряє ключ простим запитом до Gemini (список моделей). Цей запит
+    перевіряє ключ простим запитом до джеміні (список моделей). цей запит
     нічого не генерує і майже не витрачає квоту.
 
-    Формат ключа не перевіряємо за виглядом, бо він може змінюватись.
-    Єдиний надійний спосіб - спробувати ним щось зробити.
+    формат ключа не перевіряємо за виглядом, бо він може змінюватись.
+    єдиний надійний спосіб - спробувати ним щось зробити.
 
-    Повертає:
+    повертає:
     - "valid"          - ключ підходить (200).
     - "invalid"        - сервер відхилив ключ (400/401/403).
-    - "network_error"  - не вдалось достукатись до сервера. Це не означає,
+    - "network_error"  - не вдалось достукатись до сервера. це не означає,
                           що ключ поганий.
     """
     try:
@@ -322,17 +322,17 @@ def _get_api_key():
 
 class _RateGate:
     """
-    Спільний для всіх потоків "гальмівник" перед кожним запитом.
+    спільний для всіх потоків "гальмівник" перед кожним запитом.
 
-    1) Спільна пауза. Після 429 всі потоки чекають однаково. Довжину
-       паузи беремо з відповіді Gemini, а якщо її нема - 20, 40, 80 с.
-    2) Вивчений темп. Якщо Gemini сказав свій ліміт, не пускаємо більше
-       80-90% від нього за хвилину. Тоді наступних 429 вже не буде.
-       Якщо ліміту не сказали - тримаємо проміжок між запитами і
+    1) спільна пауза. після 429 всі потоки чекають однаково. довжину
+       паузи беремо з відповіді джеміні, а якщо її нема - 20, 40, 80 с.
+    2) вивчений темп. якщо джеміні сказав свій ліміт, не пускаємо більше
+       80-90% від нього за хвилину. тоді наступних 429 вже не буде.
+       якщо ліміту не сказали - тримаємо проміжок між запитами і
        змінюємо його: після 429 більше, після успіху менше.
-    3) Добова квота. Якщо вона вичерпана, решта пачок одразу падають,
+    3) добова квота. якщо вона вичерпана, решта пачок одразу падають,
        без зайвих запитів.
-    Стан спільний для всього процесу (по назві моделі), бо ліміти діють
+    стан спільний для всього процесу (по назві моделі), бо ліміти діють
     на весь ключ.
     """
 
@@ -351,14 +351,14 @@ class _RateGate:
         self._detail_logged = False
 
     def reset_for_run(self):
-        """На початку кожного аналізу скидаємо фатальну помилку з
+        """на початку кожного аналізу скидаємо фатальну помилку з
         попереднього запуску: квота могла оновитись або ключ змінили."""
         with self._lock:
             self._fatal = None
             self._detail_logged = False
 
     def estimate_tokens(self, frame_count, media_resolution=None):
-        """Оцінює, скільки токенів піде в запиті. Залежить від роздільності,
+        """оцінює, скільки токенів піде в запиті. залежить від роздільності,
         яку передали саме для цієї пачки."""
         tokens_per_frame = _TOKENS_PER_FRAME_BY_RESOLUTION.get(media_resolution, DEFAULT_TOKENS_PER_FRAME)
         return int(frame_count * tokens_per_frame) + PROMPT_OVERHEAD_TOKENS
@@ -368,23 +368,23 @@ class _RateGate:
             self._fatal = error
 
     def _purge(self, now):
-        # Викидаємо старші за хвилину записи.
+        # викидаємо старші за хвилину записи.
         while self._starts and now - self._starts[0][0] >= RATE_WINDOW_SEC:
             self._starts.popleft()
 
     def _window_wait(self, now, est_tokens):
-        """Скільки ще чекати, щоб не перевищити ліміт за останню хвилину.
+        """скільки ще чекати, щоб не перевищити ліміт за останню хвилину.
         0 - можна відправляти."""
         wait = 0.0
         starts = self._starts
         if self._max_requests is not None:
             limit = max(1, int(self._max_requests * self._safety))
             if len(starts) >= limit:
-                # Чекаємо, поки з вікна вийдуть найстаріші записи.
+                # чекаємо, поки з вікна вийдуть найстаріші записи.
                 wait = max(wait, starts[len(starts) - limit][0] + RATE_WINDOW_SEC - now)
         if self._max_tokens is not None and starts:
-            # Gemini пропускає запит, поки сума за хвилину ще менша за ліміт.
-            # Тому не вимагаємо, щоб новий запит повністю вмістився. Якщо
+            # джеміні пропускає запит, поки сума за хвилину ще менша за ліміт.
+            # тому не вимагаємо, щоб новий запит повністю вмістився. якщо
             # 429 все ж прийде, _token_safety сам зменшиться.
             budget = int(self._max_tokens * self._token_safety)
             running = sum(tokens for _, tokens in starts)
@@ -399,8 +399,8 @@ class _RateGate:
         return wait + 0.05 if wait > 0 else 0.0
 
     def acquire(self, est_tokens):
-        """Блокує потік, поки можна відправляти запит, і записує старт.
-        Кидає quota_daily, якщо добова квота вже вичерпана."""
+        """блокує потік, поки можна відправляти запит, і записує старт.
+        кидає quota_daily, якщо добова квота вже вичерпана."""
         while True:
             with self._lock:
                 if self._fatal is not None:
@@ -422,14 +422,14 @@ class _RateGate:
             time.sleep(wait + extra)
 
     def note_success(self, frame_count, prompt_tokens):
-        """Після успішного запиту трохи зменшуємо проміжок між запитами.
-        Аргументи поки не використовуються, залишені на майбутнє."""
+        """після успішного запиту трохи зменшуємо проміжок між запитами.
+        аргументи поки не використовуються, залишені на майбутнє."""
         with self._lock:
             if self._min_gap > 0.0:
                 self._min_gap = max(0.0, self._min_gap - GAP_RECOVERY_SEC)
 
     def report_rate_limit(self, error, failure_index, batch_id):
-        """Викликається, коли прийшло 429 (не добовий ліміт). Ставимо спільну
+        """викликається, коли прийшло 429 (не добовий ліміт). ставимо спільну
         паузу і, якщо це перша така відмова, підлаштовуємо темп."""
         with self._lock:
             now = time.monotonic()
@@ -448,7 +448,7 @@ class _RateGate:
                 limit = quota.get("limit")
                 already_paced = self._max_requests is not None or self._max_tokens is not None
                 if already_paced:
-                    # Ліміт вже знали, а 429 все одно прийшов - зменшуємо запас.
+                    # ліміт вже знали, а 429 все одно прийшов - зменшуємо запас.
                     self._safety = max(0.5, self._safety * 0.85)
                     self._token_safety = max(0.5, self._token_safety * 0.85)
                 if quota.get("scope") == "minute" and limit:
@@ -483,7 +483,7 @@ _gates_lock = threading.Lock()
 
 
 def _get_gate(model_name):
-    # Один гальмівник на кожну модель.
+    # один гальмівник на кожну модель.
     with _gates_lock:
         gate = _gates.get(model_name)
         if gate is None:
@@ -494,8 +494,8 @@ def _get_gate(model_name):
 
 def _parse_rate_limit_details(response):
     """
-    Читає тіло відповіді 429 від Gemini. Повертає (скільки чекати або None,
-    словник quota). Якщо формат інший, нічого не падає - просто нічого
+    читає тіло відповіді 429 від джеміні. повертає (скільки чекати або нон,
+    словник quota). якщо формат інший, нічого не падає - просто нічого
     не дізнаємось.
     """
     retry_delay = None
@@ -529,7 +529,7 @@ def _parse_rate_limit_details(response):
                         scope = "minute"
                     else:
                         scope = None
-                    # Добовий ліміт важливіший за хвилинний.
+                    # добовий ліміт важливіший за хвилинний.
                     if scope == "day" or quota["scope"] is None:
                         quota["scope"] = scope
                         quota["quota_id"] = quota_id or None
@@ -546,8 +546,8 @@ def _parse_rate_limit_details(response):
 
 
 class GeminiMatches(list):
-    """Список знайдених моментів + лічильники втрат. Поводиться як звичайний
-    list, тож старий код нічого не помічає. main.py читає failed_batches,
+    """список знайдених моментів + лічильники втрат. поводиться як звичайний
+    ліст, тож старий код нічого не помічає. main.py читає failed_batches,
     щоб попередити про неповний результат."""
     failed_batches = 0
     total_batches = 0
@@ -555,11 +555,11 @@ class GeminiMatches(list):
     total_frames = 0
 
 
-# Помилки, після яких пачку можна пропустити, а решту результатів зберегти.
+# помилки, після яких пачку можна пропустити, а решту результатів зберегти.
 _SKIPPABLE_ERROR_KINDS = {"timeout", "network", "server", "rate_limit"}
 
-# Помилки, які зазвичай через сам вміст кадрів (фільтр безпеки або дивна
-# відповідь). Для них пачку ділимо навпіл і пробуємо ще раз.
+# помилки, які зазвичай через сам вміст кадрів (фільтр безпеки або дивна
+# відповідь). для них пачку ділимо навпіл і пробуємо ще раз.
 _SPLIT_ON_ERROR_KINDS = {"blocked", "unknown"}
 
 
@@ -568,16 +568,16 @@ def _analyze_batch_resilient(
     media_resolution=None,
 ):
     """
-    Обгортка над _analyze_batch(). Одна погана пачка не забирає з собою
+    обгортка над _analyze_batch(). одна погана пачка не забирає з собою
     результати решти кадрів.
 
-    Якщо пачка впала з blocked/unknown, пробуємо розбити її навпіл (один
-    раз, далі не ділимо). Інші помилки пропускаємо далі без змін.
+    якщо пачка впала з blocked/unknown, пробуємо розбити її навпіл (один
+    раз, далі не ділимо). інші помилки пропускаємо далі без змін.
 
-    Повертає (matches, lost_frame_count, last_error):
+    повертає (matches, lost_frame_count, last_error):
       matches          - знайдені моменти (може бути неповним).
       lost_frame_count - скільки кадрів не вдалось проаналізувати.
-      last_error       - помилка, яка спричинила втрату (або None).
+      last_error       - помилка, яка спричинила втрату (або нон).
     """
     try:
         matches = _analyze_batch(
@@ -613,23 +613,23 @@ def find_object_in_frames(
     api_tier="free",
 ):
     """
-    Ділить кадри на пачки по BATCH_SIZE і шле їх у Gemini паралельно.
-    Порядок результатів не важливий, бо main.py сортує їх за часом.
+    ділить кадри на пачки по BATCH_SIZE і шле їх у джеміні паралельно.
+    порядок результатів не важливий, бо main.py сортує їх за часом.
 
     thinking_level - рівень "мислення" для всіх пачок цього аналізу.
-    None - беремо запасне значення для моделі.
+    нон - беремо запасне значення для моделі.
 
-    media_resolution - роздільність кадрів (див. коментар вище). Теж
+    media_resolution - роздільність кадрів (див. коментар вище). теж
     фіксується один раз на весь аналіз.
 
-    api_tier - "free" або "paid". Впливає лише на кількість потоків.
+    api_tier - "free" або "paid". впливає лише на кількість потоків.
 
     progress_callback(done_batches, total_batches, done_frames, total_frames)
-    викликається після кожної готової пачки. Прогрес-бар рахуємо за
+    викликається після кожної готової пачки. прогрес-бар рахуємо за
     кадрами, а не за пачками, бо пачки різного розміру.
 
-    is_cancelled - функція без аргументів. Якщо вона повертає True, пачки,
-    які ще не почались, не запускаються. Вже відправлений запит зупинити
+    is_cancelled - ф-ція без аргументів. якщо вона повертає тру, пачки,
+    які ще не почались, не запускаються. вже відправлений запит зупинити
     не можна.
     """
     api_key = _get_api_key()
@@ -654,7 +654,7 @@ def find_object_in_frames(
     done_frames = 0
 
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        # Значення словника - розмір пачки в кадрах. Потрібно, щоб після
+        # значення словника - розмір пачки в кадрах. потрібно, щоб після
         # готовності додати правильну кількість до done_frames.
         futures = {
             executor.submit(
@@ -679,7 +679,7 @@ def find_object_in_frames(
                     for pending_future in futures:
                         pending_future.cancel()
                     raise
-                # Пачка не відповіла навіть після повторів. Решту не губимо.
+                # пачка не відповіла навіть після повторів. решту не губимо.
                 all_matches.failed_batches += 1
                 all_matches.failed_frames += batch_frame_count
                 first_skipped_error = first_skipped_error or error
@@ -697,20 +697,20 @@ def find_object_in_frames(
 
     all_matches.total_batches = total_batches
     all_matches.total_frames = total_frames
-    # Якщо не вдалось жодного кадру - це повна помилка, а не часткова.
+    # якщо не вдалось жодного кадру - це повна помилка, а не часткова.
     if first_skipped_error is not None and all_matches.failed_frames >= total_frames:
         raise first_skipped_error
     return all_matches
 
 
-# Сигнал "кадрів більше не буде". Окремий унікальний об'єкт, щоб його
+# сигнал "кадрів більше не буде". окремий унікальний об'єкт, щоб його
 # не можна було сплутати з кадром або помилкою.
 STREAM_END = object()
 
 
 def _split_trailing_batch(frames):
-    """Ділить неповну останню пачку на кілька менших, щоб прогрес-бар
-    оновлювався частіше. На результат аналізу це не впливає."""
+    """ділить неповну останню пачку на кілька менших, щоб прогрес-бар
+    оновлювався частіше. на результат аналізу це не впливає."""
     n = len(frames)
     if n <= MIN_TRICKLE_SUBBATCH_SIZE:
         return [frames]
@@ -733,18 +733,18 @@ def find_object_in_frames_streaming(
     media_resolution=None, started_callback=None, api_tier="free",
 ):
     """
-    Те саме, що find_object_in_frames(), але кадри приходять через чергу.
-    Пачки летять у Gemini одразу, як набирається BATCH_SIZE кадрів, ще
-    поки відео нарізається. Так нарізка і запити йдуть паралельно.
+    те саме, що find_object_in_frames(), але кадри приходять через чергу.
+    пачки летять у джеміні одразу, як набирається BATCH_SIZE кадрів, ще
+    поки відео нарізається. так нарізка і запити йдуть паралельно.
 
-    frame_queue - черга (queue.Queue). Спочатку в ній кадри (словники),
+    frame_queue - черга (queue.Queue). спочатку в ній кадри (словники),
     потім РІВНО один фінальний елемент: або STREAM_END (нарізку завершено),
     або виняток (нарізка впала).
 
     max_frames_hint - приблизна кількість кадрів, тільки для прогрес-бару.
 
     started_callback(frame_count) викликається, коли пачка відправлена
-    (ще до відповіді). Потрібен, щоб прогрес-бар міг трохи рухатись далі,
+    (ще до відповіді). потрібен, щоб прогрес-бар міг трохи рухатись далі,
     поки ми чекаємо.
     """
     api_key = _get_api_key()
@@ -780,8 +780,8 @@ def find_object_in_frames_streaming(
                     future.cancel()
                 break
 
-            # 1) Читаємо з черги, поки не набереться повна пачка.
-            #    Короткий timeout, щоб цикл міг перевіряти скасування.
+            # 1) читаємо з черги, поки не наберється повна пачка.
+            #    короткий таймаут, щоб цикл міг перевіряти скасування.
             if not stream_ended:
                 try:
                     while len(pending_batch) < BATCH_SIZE:
@@ -803,7 +803,7 @@ def find_object_in_frames_streaming(
                 break
 
             if pending_batch and (len(pending_batch) >= BATCH_SIZE or stream_ended):
-                # Повна пачка - відправляємо як є. Неповну останню (коли
+                # повна пачка - відправляємо як є. неповну останню (коли
                 # нарізка вже закінчилась) ділимо на менші.
                 if len(pending_batch) >= BATCH_SIZE:
                     batches_to_submit = [pending_batch]
@@ -821,7 +821,7 @@ def find_object_in_frames_streaming(
                     if started_callback is not None:
                         started_callback(len(batch))
 
-            # 2) Забираємо готові пачки, не чекаючи довго.
+            # 2) забираємо готові пачки, не чекаючи довго.
             if pending_futures:
                 finished, still_pending = wait(pending_futures.keys(), timeout=0.1)
                 for future in finished:
@@ -851,7 +851,7 @@ def find_object_in_frames_streaming(
                 pending_futures = {f: pending_futures[f] for f in still_pending}
 
     if extraction_error is not None:
-        # Помилка сталась у нарізці, а не в Gemini. Прокидаємо далі як є.
+        # помилка сталась у нарізці, а не в джеміні. прокидаємо далі як є.
         raise extraction_error
 
     all_matches.total_batches = done_batches
@@ -864,13 +864,13 @@ def find_object_in_frames_streaming(
 def _analyze_batch(api_key, batch, index_offset, user_prompt, model_name, language, thinking_level=None,
                     media_resolution=None):
     """
-    Аналізує одну пачку кадрів: один REST-запит до Gemini.
+    аналізує одну пачку кадрів: один рест-запит до джеміні.
 
-    Gemini нумерує кадри з нуля всередині пачки. Тому тут же переводимо
-    номери назад у загальні (додаємо index_offset). Так модель не
+    джеміні нумерує кадри з нуля всередині пачки. тому тут же переводимо
+    номери назад у загальні (додаємо index_offset). так модель не
     плутається з великими числами.
 
-    Якщо запит впав з тимчасовою помилкою, повторюємо його до MAX_RETRIES
+    якщо запит впав з тимчасовою помилкою, повторюємо його до MAX_RETRIES
     разів з паузою, яка росте.
     """
     system_prompt = SYSTEM_PROMPTS.get(language, SYSTEM_PROMPTS[DEFAULT_PROMPT_LANGUAGE])
@@ -878,7 +878,7 @@ def _analyze_batch(api_key, batch, index_offset, user_prompt, model_name, langua
     parts = [{"text": system_prompt.format(user_prompt=user_prompt)}]
 
     for i, frame in enumerate(batch):
-        # Номер кадру в пачці (з нуля), а не загальний номер.
+        # номер кадру в пачці (з нуля), а не загальний номер.
         parts.append({"text": f"Кадр номер {i}:"})
         parts.append({
             "inline_data": {
@@ -909,7 +909,7 @@ def _analyze_batch(api_key, batch, index_offset, user_prompt, model_name, langua
     transient_failures = 0     # таймаут / мережа / 5xx
     rate_limit_failures = 0    # 429
     while True:
-        # Чекаємо, якщо триває спільна пауза або ліміт уже вичерпано.
+        # чекаємо, якщо триває спільна пауза або ліміт уже вичерпано.
         gate.acquire(est_tokens)
         try:
             result, prompt_tokens = _send_batch_request(url, api_key, payload)
@@ -930,7 +930,7 @@ def _analyze_batch(api_key, batch, index_offset, user_prompt, model_name, langua
                 continue
             if error.kind not in RETRYABLE_ERROR_KINDS or transient_failures >= MAX_RETRIES:
                 raise
-            # Пауза: 1.5 с, 3 с, 6 с, з невеликим випадковим розкидом,
+            # пауза: 1.5 с, 3 с, 6 с, з невеликим випадковим розкидом,
             # щоб два потоки не повторили запит в один момент.
             sleep_sec = RETRY_BACKOFF_BASE_SEC * (2 ** transient_failures) * random.uniform(1.0, 1.3)
             transient_failures += 1
@@ -948,10 +948,10 @@ def _analyze_batch(api_key, batch, index_offset, user_prompt, model_name, langua
 
 def _remap_local_frame_numbers(matches, index_offset, batch_size):
     """
-    Переводить номери кадрів із пачки (0..batch_size-1) у загальні номери.
+    переводить номери кадрів із пачки (0..batch_size-1) у загальні номери.
 
-    Якщо модель повернула номер поза межами пачки, такий результат
-    відкидаємо. Краще втратити один збіг, ніж записати його на чужий кадр.
+    якщо модель повернула номер поза межами пачки, такий результат
+    відкидаємо. краще втратити один збіг, ніж записати його на чужий кадр.
     """
     remapped = []
     for match in matches:
@@ -966,7 +966,7 @@ def _remap_local_frame_numbers(matches, index_offset, batch_size):
 
 def _send_batch_request(url, api_key, payload):
     """
-    Один HTTP-запит до Gemini і розбір відповіді. Окремою функцією, щоб
+    один хттп-запит до джеміні і розбір відповіді. окремою ф-цією, щоб
     цикл повторів у _analyze_batch міг викликати її знову.
     """
     request_started_ts = time.time()
@@ -988,15 +988,15 @@ def _send_batch_request(url, api_key, payload):
         quota = None
         if response.status_code == 429:
             kind = "rate_limit"
-            # Якщо сервер сам сказав, скільки чекати (Retry-After), довіряємо
-            # йому. Це ціле число секунд.
+            # якщо сервер сам сказав, скільки чекати (Retry-After), довіряємо
+            # йому. це ціле число секунд.
             raw_retry_after = response.headers.get("Retry-After")
             if raw_retry_after is not None:
                 try:
                     retry_after = float(raw_retry_after)
                 except ValueError:
                     retry_after = None
-            # У тілі 429 є точна пауза і назва ліміту.
+            # у тілі 429 є точна пауза і назва ліміту.
             body_retry_delay, quota = _parse_rate_limit_details(response)
             if body_retry_delay is not None:
                 retry_after = max(retry_after or 0.0, body_retry_delay)
@@ -1011,7 +1011,7 @@ def _send_batch_request(url, api_key, payload):
     _note_request_duration(time.time() - request_started_ts)
     result = response.json()
 
-    # Буває відповідь 200, але без результату. Найчастіше це фільтр безпеки.
+    # буває відповідь 200, але без результату. найчастіше це фільтр безпеки.
     block_reason = result.get("promptFeedback", {}).get("blockReason")
     if block_reason:
         raise GeminiApiError(
