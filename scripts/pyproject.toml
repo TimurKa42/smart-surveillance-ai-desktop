@@ -1,10 +1,12 @@
 # © 2026 Тимур Каленик (Timur Kalenik Corporation) — timurkalenik950@gmail.com
-# Метадані проєкту. Автор: Тимур Каленик. Усі права захищено (див. LICENSE).
+# метадані проєкту, автор Тимур Каленик, усі права захищено (див. LICENSE), щоб не забути
+# версію з цього файлу читає main.spec для апп на маку, міняти її тут
 
 [project]
-name = "smart-surveillance-ai"
+# назва пакета малими літерами, так хоче сетаптулс
+name = "lookback"
 version = "1.0"
-description = "Smart Surveillance AI — пошук людини/об'єкта на відео за текстовим описом (проєкт для МАН)"
+description = "LookBack — пошук людини/об'єкта на відео за текстовим описом (проєкт для МАН)"
 readme = "README.md"
 authors = [{ name = "Тимур Каленик", email = "timurkalenik950@gmail.com" }]
 maintainers = [{ name = "Тимур Каленик", email = "timurkalenik950@gmail.com" }]
@@ -12,4 +14,5 @@ license = { file = "LICENSE" }
 classifiers = ["License :: Other/Proprietary License"]
 
 [tool.setuptools]
+# порожній список, бо пакети тут не збираю, файл тільки для метаданих
 py-modules = []
